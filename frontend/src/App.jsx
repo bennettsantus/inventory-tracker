@@ -300,23 +300,35 @@ function BarcodeScanner({ onScan, onError }) {
 }
 
 // Quantity Input Component
-function QuantityInput({ value, onChange, unit }) {
-  const increment = () => onChange(Math.max(0, value + 1));
-  const decrement = () => onChange(Math.max(0, value - 1));
+function QuantityInput({ value, onChange, unit, allowNegative = false }) {
+  const increment = () => onChange(value + 1);
+  const decrement = () => onChange(allowNegative ? value - 1 : Math.max(0, value - 1));
 
   return (
     <div className="quantity-input">
       <button className="quantity-btn minus" onClick={decrement}>−</button>
       <input
         type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
+        inputMode={allowNegative ? "text" : "numeric"}
+        pattern={allowNegative ? "-?[0-9]*" : "[0-9]*"}
         value={value}
         onChange={(e) => {
-          const val = e.target.value.replace(/[^0-9.]/g, '');
-          onChange(Math.max(0, parseFloat(val) || 0));
+          const raw = e.target.value;
+          // Allow negative sign for subtract mode
+          if (allowNegative) {
+            if (raw === '-' || raw === '') {
+              onChange(raw === '-' ? '-' : 0);
+              return;
+            }
+            const val = parseFloat(raw);
+            if (!isNaN(val)) {
+              onChange(val);
+            }
+          } else {
+            const val = raw.replace(/[^0-9.]/g, '');
+            onChange(Math.max(0, parseFloat(val) || 0));
+          }
         }}
-        min="0"
       />
       <button className="quantity-btn plus" onClick={increment}>+</button>
     </div>
@@ -810,9 +822,10 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
 
   const allCategories = [...new Set([...DEFAULT_CATEGORIES, ...categories])].filter(c => c !== 'Uncategorized').sort();
 
+  const numAmount = typeof amount === 'string' ? (parseFloat(amount) || 0) : amount;
   const newTotal = mode === 'add'
-    ? Math.max(0, item.current_quantity + amount)
-    : Math.max(0, amount);
+    ? Math.max(0, item.current_quantity + numAmount)
+    : Math.max(0, numAmount);
 
   const difference = newTotal - item.current_quantity;
   const isLargeChange = Math.abs(difference) >= 10;
@@ -980,7 +993,12 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
 
         <div className="form-group">
           <label>{mode === 'add' ? 'Adjust by:' : 'Set to:'}</label>
-          <QuantityInput value={amount} onChange={setAmount} unit={item.unit_type} />
+          <QuantityInput
+            value={amount}
+            onChange={setAmount}
+            unit={item.unit_type}
+            allowNegative={mode === 'add'}
+          />
         </div>
 
         {/* New Total Preview */}
