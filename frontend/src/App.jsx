@@ -1346,6 +1346,62 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold }) {
   );
 }
 
+// Settings Menu Component
+function SettingsMenu({ darkMode, onToggleDarkMode }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="settings-menu" ref={menuRef}>
+      <button
+        className="settings-btn"
+        onClick={() => setIsOpen(!isOpen)}
+        aria-label="Settings"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="settings-dropdown">
+          <div className="settings-header">Settings</div>
+          <button
+            className="settings-option"
+            onClick={() => {
+              onToggleDarkMode();
+              setIsOpen(false);
+            }}
+          >
+            <span className="settings-option-icon">
+              {darkMode ? '☀️' : '🌙'}
+            </span>
+            <span className="settings-option-label">
+              {darkMode ? 'Light Mode' : 'Dark Mode'}
+            </span>
+            <span className="settings-option-toggle">
+              <span className={`toggle-track ${darkMode ? 'active' : ''}`}>
+                <span className="toggle-thumb" />
+              </span>
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Main App Component
 function AppContent() {
   const [view, setView] = useState('home');
@@ -1362,6 +1418,18 @@ function AppContent() {
   const [showScanSuccess, setShowScanSuccess] = useState(false);
   const [stockFilter, setStockFilter] = useState(null); // 'low', 'medium', 'good', or null
   const [cameFromQuickUpdate, setCameFromQuickUpdate] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  // Apply dark mode class to document
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  }, [darkMode]);
+
+  const toggleDarkMode = () => setDarkMode(prev => !prev);
 
   const handleEditThreshold = (item) => {
     setCameFromQuickUpdate(showQuickUpdate);
@@ -1580,10 +1648,12 @@ function AppContent() {
   return (
     <div className="app">
       <header className="header">
+        <SettingsMenu darkMode={darkMode} onToggleDarkMode={toggleDarkMode} />
         <h1>
           <span className="header-primary">INVENTORY</span>
           <span className="header-secondary">tracker</span>
         </h1>
+        <div className="header-spacer" />
       </header>
 
       {alert && (
