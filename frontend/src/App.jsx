@@ -719,20 +719,6 @@ function ThresholdEditModal({ item, onSave, onClose, allItems, onBulkSave, onBac
           </div>
         </div>
 
-        <div className="threshold-suggestions">
-          <span className="suggestion-label">Quick:</span>
-          {[0, 5, 10, 15, 20, 25].map(val => (
-            <button
-              key={val}
-              type="button"
-              className={`suggestion-btn ${threshold === val ? 'active' : ''}`}
-              onClick={() => setThreshold(val)}
-            >
-              {val === 0 ? 'Off' : val}
-            </button>
-          ))}
-        </div>
-
         {/* Status Preview */}
         <div className={`threshold-status-preview ${newStatus}`}>
           <div className="preview-header">
@@ -967,7 +953,7 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
               {item.min_quantity > 0 ? `${getStockPercentage(item.current_quantity, item.min_quantity)}% of target` : 'No threshold set'}
             </span>
             <button className="threshold-edit-btn" onClick={() => onEditThreshold?.(item)}>
-              {item.min_quantity > 0 ? '⚙️ Adjust' : '+ Set Alert'}
+              {item.min_quantity > 0 ? '🔔 Alert' : '+ Set Alert'}
             </button>
           </div>
           {stockStatus === 'low' && (
@@ -1314,7 +1300,7 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold }) {
                       + Restock
                     </button>
                     <button className="alert-btn secondary" onClick={(e) => { e.stopPropagation(); onEditThreshold?.(item); }}>
-                      Adjust Alert
+                      Edit Alert
                     </button>
                   </div>
                 </div>
