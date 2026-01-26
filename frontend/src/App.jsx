@@ -1192,7 +1192,7 @@ function InventoryList({ items, onItemClick, onAddItem, loading, categories, rec
 }
 
 // Dashboard Component
-function Dashboard({ items, onItemClick, onNavigate, onEditThreshold }) {
+function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRestock }) {
   const totalItems = items.length;
 
   // Get low stock items and sort by severity (most critical first)
@@ -1296,7 +1296,7 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold }) {
                     </div>
                   </div>
                   <div className="alert-card-actions">
-                    <button className="alert-btn primary" onClick={() => onItemClick?.(item)}>
+                    <button className="alert-btn primary" onClick={(e) => { e.stopPropagation(); onAddToRestock?.(item); }}>
                       + Restock
                     </button>
                     <button className="alert-btn secondary" onClick={(e) => { e.stopPropagation(); onEditThreshold?.(item); }}>
@@ -1346,6 +1346,101 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold }) {
           <p style={{ fontSize: '0.875rem' }}>Go to Scan to add your first item</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// Restock List Component (Shopping List)
+function RestockList({ items, onUpdateQuantity, onRemove, onClear, onItemClick }) {
+  const totalItems = items.length;
+
+  if (totalItems === 0) {
+    return (
+      <div className="empty-state">
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🛒</div>
+        <p>Your restock list is empty</p>
+        <p style={{ fontSize: '0.875rem' }}>
+          Tap "+ Restock" on low stock items to add them here
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="restock-list">
+      <div className="restock-header">
+        <div className="restock-title">
+          <span className="restock-icon">🛒</span>
+          <span>Shopping List</span>
+          <span className="restock-count">{totalItems} item{totalItems !== 1 ? 's' : ''}</span>
+        </div>
+        <button className="btn btn-secondary btn-sm" onClick={onClear}>
+          Clear All
+        </button>
+      </div>
+
+      <div className="restock-items">
+        {items.map((item) => (
+          <div key={item.id} className="restock-item">
+            <div className="restock-item-info" onClick={() => onItemClick?.(item)}>
+              <div className="restock-item-icon">{getCategoryIcon(item.category)}</div>
+              <div className="restock-item-details">
+                <div className="restock-item-name">{item.name}</div>
+                <div className="restock-item-meta">
+                  <span>Current: {item.current_quantity} {item.unit_type}</span>
+                  <span className="restock-item-needed">
+                    Need: {Math.max(0, item.min_quantity - item.current_quantity)} more
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="restock-item-controls">
+              <div className="restock-quantity">
+                <label>Order:</label>
+                <div className="restock-quantity-input">
+                  <button
+                    className="qty-btn"
+                    onClick={() => onUpdateQuantity(item.id, item.orderQuantity - 1)}
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    value={item.orderQuantity}
+                    onChange={(e) => onUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
+                    min="0"
+                  />
+                  <button
+                    className="qty-btn"
+                    onClick={() => onUpdateQuantity(item.id, item.orderQuantity + 1)}
+                  >
+                    +
+                  </button>
+                </div>
+                <span className="restock-unit">{item.unit_type}</span>
+              </div>
+              <button
+                className="restock-remove-btn"
+                onClick={() => onRemove(item.id)}
+                title="Remove from list"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="restock-summary">
+        <div className="summary-row">
+          <span>Total items to order:</span>
+          <strong>{totalItems}</strong>
+        </div>
+        <div className="summary-row">
+          <span>Total units:</span>
+          <strong>{items.reduce((sum, i) => sum + i.orderQuantity, 0)}</strong>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1426,6 +1521,52 @@ function AppContent() {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
   });
+  const [restockList, setRestockList] = useState(() => {
+    const saved = localStorage.getItem('restockList');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Save restock list to localStorage
+  useEffect(() => {
+    localStorage.setItem('restockList', JSON.stringify(restockList));
+  }, [restockList]);
+
+  const addToRestockList = (item) => {
+    setRestockList(prev => {
+      // Check if already in list
+      const existing = prev.find(i => i.id === item.id);
+      if (existing) {
+        showAlert('info', `${item.name} is already in your restock list`);
+        return prev;
+      }
+      // Calculate suggested order quantity (difference to reach min + 20% buffer)
+      const needed = Math.max(0, item.min_quantity - item.current_quantity);
+      const suggested = Math.ceil(needed * 1.2) || item.min_quantity || 10;
+      showAlert('success', `Added ${item.name} to restock list`);
+      return [...prev, {
+        ...item,
+        orderQuantity: suggested,
+        addedAt: new Date().toISOString()
+      }];
+    });
+  };
+
+  const updateRestockQuantity = (itemId, quantity) => {
+    setRestockList(prev =>
+      prev.map(item =>
+        item.id === itemId ? { ...item, orderQuantity: Math.max(0, quantity) } : item
+      )
+    );
+  };
+
+  const removeFromRestockList = (itemId) => {
+    setRestockList(prev => prev.filter(item => item.id !== itemId));
+  };
+
+  const clearRestockList = () => {
+    setRestockList([]);
+    showAlert('success', 'Restock list cleared');
+  };
 
   // Apply dark mode class to document
   useEffect(() => {
@@ -1685,6 +1826,15 @@ function AppContent() {
         >
           Inventory
         </button>
+        <button
+          className={`nav-btn ${view === 'restock' ? 'active' : ''}`}
+          onClick={() => setView('restock')}
+        >
+          Restock
+          {restockList.length > 0 && (
+            <span className="nav-badge">{restockList.length}</span>
+          )}
+        </button>
       </nav>
 
       {view === 'scan' && (
@@ -1758,7 +1908,25 @@ function AppContent() {
         />
       )}
 
-      {view === 'home' && <Dashboard items={items} onItemClick={handleItemClick} onNavigate={handleNavigateToInventory} onEditThreshold={handleEditThreshold} />}
+      {view === 'home' && (
+        <Dashboard
+          items={items}
+          onItemClick={handleItemClick}
+          onNavigate={handleNavigateToInventory}
+          onEditThreshold={handleEditThreshold}
+          onAddToRestock={addToRestockList}
+        />
+      )}
+
+      {view === 'restock' && (
+        <RestockList
+          items={restockList}
+          onUpdateQuantity={updateRestockQuantity}
+          onRemove={removeFromRestockList}
+          onClear={clearRestockList}
+          onItemClick={handleItemClick}
+        />
+      )}
 
       {showItemModal && (
         <ItemModal
