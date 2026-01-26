@@ -2587,3 +2587,193 @@ body {
   padding: 0.75rem;
   min-height: auto;
 }
+
+/* ========================================
+   DARK MODE OVERRIDES
+   ======================================== */
+
+/* Stat Card Labels - Much brighter in dark mode */
+:root.dark .stat-label {
+  color: #e2e8f0;
+  font-weight: 700;
+}
+
+/* Stat Card Backgrounds - Dark gradients instead of white */
+:root.dark .stat-card.success {
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.25) 0%, var(--card-bg) 100%);
+}
+
+:root.dark .stat-card.success .stat-label {
+  color: #86efac;
+}
+
+:root.dark .stat-card.success .stat-value {
+  color: #4ade80;
+}
+
+:root.dark .stat-card.warning {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, var(--card-bg) 100%);
+}
+
+:root.dark .stat-card.warning .stat-label {
+  color: #fcd34d;
+}
+
+:root.dark .stat-card.warning .stat-value {
+  color: #fbbf24;
+}
+
+:root.dark .stat-card.primary {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, var(--card-bg) 100%);
+}
+
+:root.dark .stat-card.primary .stat-label {
+  color: #93c5fd;
+}
+
+:root.dark .stat-card.primary .stat-value {
+  color: #60a5fa;
+}
+
+:root.dark .stat-card.danger {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, var(--card-bg) 100%);
+}
+
+:root.dark .stat-card.danger .stat-label {
+  color: #fca5a5;
+}
+
+:root.dark .stat-card.danger .stat-value {
+  color: #f87171;
+}
+
+/* Alert Cards - Dark backgrounds */
+:root.dark .alert-card.critical {
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.2) 0%, var(--card-bg) 25%);
+}
+
+:root.dark .alert-card.high {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.2) 0%, var(--card-bg) 25%);
+}
+
+/* Alert Card Text - Brighter for readability */
+:root.dark .alert-card-name {
+  color: #f1f5f9;
+}
+
+:root.dark .alert-card-status.critical {
+  color: #fca5a5;
+}
+
+:root.dark .alert-card-status.high {
+  color: #fcd34d;
+}
+
+:root.dark .alert-card-status.moderate {
+  color: #cbd5e1;
+}
+
+:root.dark .qty-current {
+  color: #f1f5f9;
+}
+
+:root.dark .qty-separator,
+:root.dark .qty-target {
+  color: #94a3b8;
+}
+
+:root.dark .alert-card.critical .qty-current {
+  color: #fca5a5;
+}
+
+:root.dark .alert-card.high .qty-current {
+  color: #fcd34d;
+}
+
+/* Alert Card Labels */
+:root.dark .alert-card-label {
+  color: #f1f5f9;
+}
+
+:root.dark .alert-card-label.critical {
+  background: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+:root.dark .alert-card-label.high {
+  background: rgba(245, 158, 11, 0.3);
+  color: #fcd34d;
+}
+
+:root.dark .alert-card-label.moderate {
+  background: rgba(100, 116, 139, 0.3);
+  color: #cbd5e1;
+}
+
+/* Alert Banner - Dark mode */
+:root.dark .alert-banner.danger {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.1) 100%);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+:root.dark .alert-banner.danger .alert-banner-content strong {
+  color: #fca5a5;
+}
+
+:root.dark .alert-banner.danger .alert-banner-content span {
+  color: #fecaca;
+}
+
+:root.dark .alert-banner.success {
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.25) 0%, rgba(22, 163, 74, 0.1) 100%);
+  border-color: rgba(22, 163, 74, 0.5);
+}
+
+:root.dark .alert-banner.success .alert-banner-content strong {
+  color: #86efac;
+}
+
+:root.dark .alert-banner.success .alert-banner-content span {
+  color: #bbf7d0;
+}
+
+/* Section Headers - Brighter */
+:root.dark .section-header {
+  color: #e2e8f0;
+}
+
+:root.dark .section-header.danger {
+  color: #fca5a5;
+}
+
+/* Card titles */
+:root.dark .card-title {
+  color: #e2e8f0;
+}
+
+/* Inventory items in dark mode */
+:root.dark .inventory-item {
+  background: var(--card-bg);
+  border-color: var(--border-color);
+}
+
+:root.dark .item-name {
+  color: #f1f5f9;
+}
+
+:root.dark .category-badge {
+  background: rgba(100, 116, 139, 0.3);
+  color: #cbd5e1;
+}
+
+:root.dark .stock-indicator.low {
+  color: #fca5a5;
+}
+
+:root.dark .stock-indicator.medium {
+  color: #fcd34d;
+}
+
+:root.dark .stock-indicator.good {
+  color: #86efac;
+}
