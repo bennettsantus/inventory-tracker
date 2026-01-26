@@ -1214,93 +1214,78 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
     <div>
       {/* Prominent Low Stock Alert Banner */}
       {lowStockItems.length > 0 && (
-        <div className="alert-banner danger" onClick={() => onNavigate?.('low')}>
-          <div className="alert-banner-icon">🚨</div>
+        <div className="alert-banner critical" onClick={() => onNavigate?.('low')}>
+          <div className="alert-banner-icon">!</div>
           <div className="alert-banner-content">
             <strong>{lowStockItems.length} item{lowStockItems.length !== 1 ? 's' : ''} need restocking</strong>
-            <span>Tap to view low stock items</span>
+            <span>Tap to view and take action</span>
           </div>
         </div>
       )}
 
       {lowStockItems.length === 0 && items.length > 0 && (
-        <div className="alert-banner success">
-          <div className="alert-banner-icon">✅</div>
+        <div className="alert-banner safe">
+          <div className="alert-banner-icon">✓</div>
           <div className="alert-banner-content">
-            <strong>All items well stocked!</strong>
-            <span>No items below minimum threshold</span>
+            <strong>All items well stocked</strong>
+            <span>No items below threshold</span>
           </div>
         </div>
       )}
 
       <div className="stats-grid">
-        <div className="stat-card primary clickable" onClick={() => onNavigate?.('all')}>
-          <div className="stat-icon">📦</div>
+        <div className="stat-card neutral" onClick={() => onNavigate?.('all')}>
           <div className="stat-value">{totalItems}</div>
           <div className="stat-label">Total Items</div>
         </div>
-        <div className={`stat-card ${lowStockItems.length > 0 ? 'danger' : 'success'} clickable`} onClick={() => onNavigate?.('low')}>
-          <div className="stat-icon">{lowStockItems.length > 0 ? '⚠️' : '✅'}</div>
+        <div className={`stat-card ${lowStockItems.length > 0 ? 'critical' : 'safe'}`} onClick={() => onNavigate?.('low')}>
           <div className="stat-value">{lowStockItems.length}</div>
-          <div className="stat-label">Low Stock</div>
+          <div className="stat-label">Critical</div>
         </div>
-        <div className="stat-card warning clickable" onClick={() => onNavigate?.('medium')}>
-          <div className="stat-icon">⚡</div>
+        <div className="stat-card warning" onClick={() => onNavigate?.('medium')}>
           <div className="stat-value">{mediumStockItems.length}</div>
-          <div className="stat-label">Running Low</div>
+          <div className="stat-label">Order Soon</div>
         </div>
-        <div className="stat-card success clickable" onClick={() => onNavigate?.('good')}>
-          <div className="stat-icon">✓</div>
+        <div className="stat-card safe" onClick={() => onNavigate?.('good')}>
           <div className="stat-value">{goodStockItems.length}</div>
-          <div className="stat-label">Well Stocked</div>
+          <div className="stat-label">In Stock</div>
         </div>
       </div>
 
       {/* Low Stock Items - Priority Section */}
       {lowStockItems.length > 0 && (
         <div className="alert-section">
-          <div className="section-header danger">
-            <span className="section-icon">🚨</span>
-            <span>Low Stock Alerts</span>
-            <span className={`alert-count-badge ${lowStockItems.length >= 3 ? 'critical' : 'warning'}`}>
-              {lowStockItems.length}
-            </span>
+          <div className="section-header critical">
+            <span>Action Required</span>
+            <span className="section-count">{lowStockItems.length}</span>
           </div>
           <div className="alert-list">
             {lowStockItems.map((item) => {
               const percentage = getStockPercentage(item.current_quantity, item.min_quantity);
               const needed = item.min_quantity - item.current_quantity;
-              // Severity based on percentage remaining
-              const severityClass = percentage <= 25 ? 'critical' : percentage <= 50 ? 'high' : 'moderate';
-              const severityLabel = percentage <= 25 ? 'CRITICAL' : percentage <= 50 ? 'LOW' : 'RUNNING LOW';
+              const severityClass = percentage <= 25 ? 'critical' : 'warning';
+              const severityLabel = percentage <= 25 ? 'CRITICAL' : 'LOW';
 
               return (
                 <div key={item.id} className={`alert-card ${severityClass}`}>
                   <div className="alert-card-content" onClick={() => onItemClick?.(item)}>
-                    <div className="alert-card-left">
-                      <div className="alert-card-icon">{getCategoryIcon(item.category)}</div>
-                      <div className="alert-card-info">
-                        <div className="alert-card-name">{item.name}</div>
-                        <div className={`alert-card-status ${severityClass}`}>
-                          Need {needed} more {item.unit_type}
-                        </div>
+                    <div className="alert-card-info">
+                      <div className="alert-card-name">{item.name}</div>
+                      <div className={`alert-card-status ${severityClass}`}>
+                        Need {needed} more {item.unit_type}
                       </div>
                     </div>
-                    <div className="alert-card-right">
-                      <div className="alert-card-quantity">
-                        <span className="qty-current">{item.current_quantity}</span>
-                        <span className="qty-separator">/</span>
-                        <span className="qty-target">{item.min_quantity}</span>
-                      </div>
-                      <div className={`alert-card-label ${severityClass}`}>{severityLabel}</div>
+                    <div className="alert-card-quantity">
+                      <span className="current">{item.current_quantity}</span>
+                      <span className="target">/ {item.min_quantity} {item.unit_type}</span>
                     </div>
                   </div>
                   <div className="alert-card-actions">
                     <button className="alert-btn primary" onClick={(e) => { e.stopPropagation(); onAddToRestock?.(item); }}>
-                      + Restock
+                      Add to Order
                     </button>
                     <button className="alert-btn secondary" onClick={(e) => { e.stopPropagation(); onEditThreshold?.(item); }}>
-                      Edit Alert
+                      Adjust
                     </button>
                   </div>
                 </div>
@@ -1311,27 +1296,27 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
       )}
 
       {mediumStockItems.length > 0 && (
-        <div className="card">
-          <div className="card-title" style={{ color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>⚡</span> Running Low
+        <div className="alert-section">
+          <div className="section-header warning">
+            <span>Order Soon</span>
+            <span className="section-count">{mediumStockItems.length}</span>
           </div>
           <div className="inventory-list">
             {mediumStockItems.map((item) => (
               <div
                 key={item.id}
-                className="inventory-item medium-stock"
+                className="inventory-item warning"
                 onClick={() => onItemClick?.(item)}
-                style={{ cursor: 'pointer' }}
               >
                 <div className="item-info">
-                  <div className="item-name">{getCategoryIcon(item.category)} {item.name}</div>
+                  <div className="item-name">{item.name}</div>
                   <div className="item-meta">
-                    <span className="category-badge">{item.category}</span>
+                    <span className="item-category">{item.category}</span>
                   </div>
                 </div>
-                <div className="item-quantity medium">
-                  <div className="value">{item.current_quantity}</div>
-                  <div className="unit">{item.unit_type}</div>
+                <div className="item-quantity">
+                  <div className="quantity-value">{item.current_quantity}</div>
+                  <div className="quantity-unit">{item.unit_type}</div>
                 </div>
               </div>
             ))}
@@ -1341,9 +1326,8 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
 
       {items.length === 0 && (
         <div className="empty-state">
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
           <p>No inventory items yet</p>
-          <p style={{ fontSize: '0.875rem' }}>Go to Scan to add your first item</p>
+          <p>Go to Scan to add your first item</p>
         </div>
       )}
     </div>
@@ -1357,11 +1341,8 @@ function RestockList({ items, onUpdateQuantity, onRemove, onClear, onItemClick }
   if (totalItems === 0) {
     return (
       <div className="empty-state">
-        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🛒</div>
-        <p>Your restock list is empty</p>
-        <p style={{ fontSize: '0.875rem' }}>
-          Tap "+ Restock" on low stock items to add them here
-        </p>
+        <p>Your order list is empty</p>
+        <p>Add items from the Action Required section</p>
       </div>
     );
   }
@@ -1370,8 +1351,7 @@ function RestockList({ items, onUpdateQuantity, onRemove, onClear, onItemClick }
     <div className="restock-list">
       <div className="restock-header">
         <div className="restock-title">
-          <span className="restock-icon">🛒</span>
-          <span>Shopping List</span>
+          <span>Order List</span>
           <span className="restock-count">{totalItems} item{totalItems !== 1 ? 's' : ''}</span>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={onClear}>
@@ -1383,7 +1363,6 @@ function RestockList({ items, onUpdateQuantity, onRemove, onClear, onItemClick }
         {items.map((item) => (
           <div key={item.id} className="restock-item">
             <div className="restock-item-info" onClick={() => onItemClick?.(item)}>
-              <div className="restock-item-icon">{getCategoryIcon(item.category)}</div>
               <div className="restock-item-details">
                 <div className="restock-item-name">{item.name}</div>
                 <div className="restock-item-meta">
@@ -1794,10 +1773,7 @@ function AppContent() {
     <div className="app">
       <header className="header">
         <SettingsMenu darkMode={darkMode} onToggleDarkMode={toggleDarkMode} />
-        <h1>
-          <span className="header-primary">INVENTORY</span>
-          <span className="header-secondary">tracker</span>
-        </h1>
+        <h1>Inventory Manager</h1>
         <div className="header-spacer" />
       </header>
 
