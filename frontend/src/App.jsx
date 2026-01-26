@@ -135,6 +135,23 @@ const api = {
 // Barcode Scanner Component - Using isolated scanner instance
 function ScannerView({ onScan, onStop }) {
   const [scannerReady, setScannerReady] = useState(false);
+  const [flashOn, setFlashOn] = useState(false);
+  const [flashSupported, setFlashSupported] = useState(false);
+  const scannerRef = useRef(null);
+
+  const toggleFlash = async () => {
+    if (!scannerRef.current) return;
+
+    try {
+      const newFlashState = !flashOn;
+      await scannerRef.current.applyVideoConstraints({
+        advanced: [{ torch: newFlashState }]
+      });
+      setFlashOn(newFlashState);
+    } catch (err) {
+      console.error('Flash toggle failed:', err);
+    }
+  };
 
   useEffect(() => {
     let scanner = null;
@@ -147,6 +164,7 @@ function ScannerView({ onScan, onStop }) {
         if (stopped) return;
 
         scanner = new Html5Qrcode('qr-reader');
+        scannerRef.current = scanner;
 
         await scanner.start(
           { facingMode: 'environment' },
@@ -166,6 +184,16 @@ function ScannerView({ onScan, onStop }) {
           () => {}
         );
         setScannerReady(true);
+
+        // Check if flash/torch is supported
+        try {
+          const capabilities = scanner.getRunningTrackCapabilities();
+          if (capabilities && capabilities.torch) {
+            setFlashSupported(true);
+          }
+        } catch (e) {
+          // Torch not supported
+        }
       } catch (err) {
         console.error('Camera start failed:', err);
         if (!stopped) {
@@ -178,6 +206,7 @@ function ScannerView({ onScan, onStop }) {
 
     return () => {
       stopped = true;
+      scannerRef.current = null;
       if (scanner) {
         try {
           scanner.stop().catch(() => {});
@@ -186,7 +215,20 @@ function ScannerView({ onScan, onStop }) {
     };
   }, [onScan, onStop]);
 
-  return <div id="qr-reader" style={{ width: '100%', minHeight: '250px' }} />;
+  return (
+    <div style={{ position: 'relative', width: '100%', minHeight: '250px' }}>
+      <div id="qr-reader" style={{ width: '100%', minHeight: '250px' }} />
+      {scannerReady && flashSupported && (
+        <button
+          onClick={toggleFlash}
+          className={`flash-toggle-btn ${flashOn ? 'flash-on' : ''}`}
+          title={flashOn ? 'Turn off flash' : 'Turn on flash'}
+        >
+          {flashOn ? '🔦' : '💡'}
+        </button>
+      )}
+    </div>
+  );
 }
 
 function BarcodeScanner({ onScan, onError }) {

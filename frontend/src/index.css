@@ -357,6 +357,36 @@ body {
   border: 1px solid var(--danger);
 }
 
+/* Flash Toggle Button */
+.flash-toggle-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.flash-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.flash-toggle-btn.flash-on {
+  background: var(--warning);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.5);
+}
+
 .scanned-barcode {
   margin-top: 1rem;
   padding: 1rem;
