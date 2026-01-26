@@ -17,5 +17,9 @@
   },
   "devDependencies": {
     "@railway/cli": "^4.27.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3"
   }
 }

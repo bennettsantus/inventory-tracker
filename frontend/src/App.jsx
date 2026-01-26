@@ -56,6 +56,16 @@ const getApiBase = () => {
 
 const API_BASE = getApiBase();
 
+// Auth token management
+const getAuthToken = () => localStorage.getItem('authToken');
+const setAuthToken = (token) => localStorage.setItem('authToken', token);
+const clearAuthToken = () => localStorage.removeItem('authToken');
+
+const getAuthHeaders = () => {
+  const token = getAuthToken();
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+};
+
 // Barcode lookup API (Open Food Facts - free, no API key needed)
 async function lookupBarcode(barcode) {
   try {
@@ -79,23 +89,94 @@ async function lookupBarcode(barcode) {
 
 // API functions
 const api = {
+  // Auth endpoints
+  async signup(email, password, name) {
+    const res = await fetch(`${API_BASE}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Signup failed');
+    return data;
+  },
+
+  async login(email, password) {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    return data;
+  },
+
+  async getMe() {
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      headers: { ...getAuthHeaders() },
+    });
+    if (res.status === 401 || res.status === 403) return null;
+    if (!res.ok) throw new Error('Failed to get user');
+    return res.json();
+  },
+
+  // Inventory endpoints
   async getItems() {
-    const res = await fetch(`${API_BASE}/items`);
+    const res = await fetch(`${API_BASE}/items`, {
+      headers: { ...getAuthHeaders() },
+    });
     if (!res.ok) throw new Error('Failed to fetch items');
     return res.json();
   },
 
   async getItemByBarcode(barcode) {
-    const res = await fetch(`${API_BASE}/items/barcode/${barcode}`);
+    const res = await fetch(`${API_BASE}/items/barcode/${barcode}`, {
+      headers: { ...getAuthHeaders() },
+    });
     if (res.status === 404) return null;
     if (!res.ok) throw new Error('Failed to fetch item');
+    return res.json();
+  },
+
+  async getItemUsage(id, days = 30) {
+    const res = await fetch(`${API_BASE}/items/${id}/usage?days=${days}`, {
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error('Failed to fetch usage data');
+    return res.json();
+  },
+
+  async recordWaste(itemId, quantity, reason, notes = null, costEstimate = null) {
+    const res = await fetch(`${API_BASE}/waste`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ item_id: itemId, quantity, reason, notes, cost_estimate: costEstimate }),
+    });
+    if (!res.ok) throw new Error('Failed to record waste');
+    return res.json();
+  },
+
+  async getWasteAnalytics(days = 30) {
+    const res = await fetch(`${API_BASE}/waste/analytics?days=${days}`, {
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error('Failed to fetch waste analytics');
+    return res.json();
+  },
+
+  async getAllWaste(days = 30) {
+    const res = await fetch(`${API_BASE}/waste?days=${days}`, {
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error('Failed to fetch waste records');
     return res.json();
   },
 
   async createItem(item) {
     const res = await fetch(`${API_BASE}/items`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(item),
     });
     if (!res.ok) {
@@ -108,7 +189,7 @@ const api = {
   async updateItem(id, item) {
     const res = await fetch(`${API_BASE}/items/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(item),
     });
     if (!res.ok) throw new Error('Failed to update item');
@@ -118,7 +199,7 @@ const api = {
   async updateQuantity(id, quantity) {
     const res = await fetch(`${API_BASE}/items/${id}/quantity`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify({ quantity }),
     });
     if (!res.ok) throw new Error('Failed to update quantity');
@@ -126,7 +207,10 @@ const api = {
   },
 
   async deleteItem(id) {
-    const res = await fetch(`${API_BASE}/items/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/items/${id}`, {
+      method: 'DELETE',
+      headers: { ...getAuthHeaders() },
+    });
     if (!res.ok) throw new Error('Failed to delete item');
     return res.json();
   },
@@ -592,28 +676,9 @@ function ItemModal({ item, barcode, lookupData, onSave, onClose, onDelete, categ
                 onChange={(e) => setFormData({ ...formData, min_quantity: parseFloat(e.target.value) || 0 })}
                 min="0"
                 step="1"
+                placeholder="0"
               />
               <span className="threshold-unit">{formData.unit_type}</span>
-            </div>
-            <div className="threshold-suggestions">
-              <span className="suggestion-label">Quick set:</span>
-              {[5, 10, 15, 20].map(val => (
-                <button
-                  key={val}
-                  type="button"
-                  className={`suggestion-btn ${formData.min_quantity === val ? 'active' : ''}`}
-                  onClick={() => setFormData({ ...formData, min_quantity: val })}
-                >
-                  {val}
-                </button>
-              ))}
-              <button
-                type="button"
-                className={`suggestion-btn ${formData.min_quantity === getDefaultThreshold(formData.category) ? 'active' : ''}`}
-                onClick={() => setFormData({ ...formData, min_quantity: getDefaultThreshold(formData.category) })}
-              >
-                Auto ({getDefaultThreshold(formData.category)})
-              </button>
             </div>
             {formData.min_quantity > 0 && (
               <div className="threshold-preview">
@@ -796,9 +861,426 @@ function ThresholdEditModal({ item, onSave, onClose, allItems, onBulkSave, onBac
   );
 }
 
+// Usage Analytics Component
+function UsageAnalytics({ item, onClose }) {
+  const [usageData, setUsageData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(30);
+
+  useEffect(() => {
+    const fetchUsage = async () => {
+      setLoading(true);
+      try {
+        const data = await api.getItemUsage(item.id, days);
+        setUsageData(data);
+      } catch (err) {
+        console.error('Failed to fetch usage:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUsage();
+  }, [item.id, days]);
+
+  if (loading) {
+    return (
+      <div className="usage-analytics">
+        <div className="loading-spinner">Loading usage data...</div>
+      </div>
+    );
+  }
+
+  const analytics = usageData?.analytics;
+  const history = usageData?.history || [];
+
+  // Group history by day for display
+  const dailyUsage = history.reduce((acc, entry) => {
+    const date = new Date(entry.recorded_at).toLocaleDateString();
+    acc[date] = (acc[date] || 0) + entry.quantity_used;
+    return acc;
+  }, {});
+
+  const dailyEntries = Object.entries(dailyUsage)
+    .sort((a, b) => new Date(b[0]) - new Date(a[0]))
+    .slice(0, 7);
+
+  // Calculate projections
+  const avgPerDay = analytics?.averagePerDay || 0;
+  const daysRemaining = analytics?.daysRemaining;
+  const projectedRunOut = daysRemaining !== null
+    ? new Date(Date.now() + daysRemaining * 24 * 60 * 60 * 1000)
+    : null;
+
+  return (
+    <div className="usage-analytics">
+      <div className="analytics-header">
+        <h3>Usage Analytics</h3>
+        <select value={days} onChange={(e) => setDays(parseInt(e.target.value))}>
+          <option value={7}>Last 7 days</option>
+          <option value={14}>Last 14 days</option>
+          <option value={30}>Last 30 days</option>
+        </select>
+      </div>
+
+      {analytics?.daysWithUsage === 0 ? (
+        <div className="no-usage-data">
+          <p>No usage data recorded yet</p>
+          <p className="hint">Usage is tracked automatically when you decrease stock quantities</p>
+        </div>
+      ) : (
+        <>
+          <div className="analytics-stats">
+            <div className="analytics-stat">
+              <div className="stat-value">{avgPerDay}</div>
+              <div className="stat-label">{item.unit_type}/day avg</div>
+            </div>
+            <div className="analytics-stat">
+              <div className="stat-value">{analytics?.totalUsed || 0}</div>
+              <div className="stat-label">used in {days}d</div>
+            </div>
+            <div className={`analytics-stat ${daysRemaining !== null && daysRemaining <= 3 ? 'urgent' : ''}`}>
+              <div className="stat-value">
+                {daysRemaining !== null ? daysRemaining : '—'}
+              </div>
+              <div className="stat-label">days left</div>
+            </div>
+          </div>
+
+          {projectedRunOut && daysRemaining !== null && (
+            <div className={`projection-card ${daysRemaining <= 3 ? 'critical' : daysRemaining <= 7 ? 'warning' : 'safe'}`}>
+              <div className="projection-label">Projected to run out:</div>
+              <div className="projection-date">
+                {daysRemaining === 0 ? 'Today' :
+                 daysRemaining === 1 ? 'Tomorrow' :
+                 projectedRunOut.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </div>
+              {avgPerDay > 0 && (
+                <div className="projection-hint">
+                  Order {Math.ceil(avgPerDay * 7)} {item.unit_type} for 1 week supply
+                </div>
+              )}
+            </div>
+          )}
+
+          {dailyEntries.length > 0 && (
+            <div className="usage-history">
+              <h4>Recent Usage</h4>
+              <div className="usage-bars">
+                {dailyEntries.map(([date, amount]) => {
+                  const maxAmount = Math.max(...dailyEntries.map(e => e[1]));
+                  const percentage = maxAmount > 0 ? (amount / maxAmount) * 100 : 0;
+                  return (
+                    <div key={date} className="usage-bar-row">
+                      <span className="usage-date">{new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                      <div className="usage-bar-container">
+                        <div className="usage-bar" style={{ width: `${percentage}%` }} />
+                      </div>
+                      <span className="usage-amount">{amount}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Waste reasons
+const WASTE_REASONS = [
+  { value: 'expired', label: 'Expired', icon: '📅' },
+  { value: 'spoiled', label: 'Spoiled', icon: '🦠' },
+  { value: 'damaged', label: 'Damaged', icon: '💔' },
+  { value: 'overprepped', label: 'Over-prepared', icon: '🍳' },
+  { value: 'dropped', label: 'Dropped/Spilled', icon: '💧' },
+  { value: 'quality', label: 'Quality Issue', icon: '👎' },
+  { value: 'other', label: 'Other', icon: '📝' },
+];
+
+// Log Waste Modal
+function LogWasteModal({ item, onSave, onClose }) {
+  const [quantity, setQuantity] = useState(1);
+  const [reason, setReason] = useState('');
+  const [notes, setNotes] = useState('');
+  const [costPerUnit, setCostPerUnit] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const estimatedCost = costPerUnit ? (parseFloat(costPerUnit) * quantity).toFixed(2) : null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!reason || quantity <= 0) return;
+
+    setSaving(true);
+    try {
+      await onSave(item.id, quantity, reason, notes || null, estimatedCost ? parseFloat(estimatedCost) : null);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Log Waste</h2>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+
+        <div className="item-header-card">
+          <div className="item-icon">{getCategoryIcon(item.category)}</div>
+          <div className="item-details">
+            <div className="item-title">{item.name}</div>
+            <div className="item-subtitle">Current stock: {item.current_quantity} {item.unit_type}</div>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Quantity Wasted *</label>
+            <QuantityInput
+              value={quantity}
+              onChange={setQuantity}
+              unit={item.unit_type}
+            />
+            {quantity > item.current_quantity && (
+              <div className="form-warning">Quantity exceeds current stock</div>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label>Reason for Waste *</label>
+            <div className="waste-reason-grid">
+              {WASTE_REASONS.map((r) => (
+                <button
+                  key={r.value}
+                  type="button"
+                  className={`waste-reason-btn ${reason === r.value ? 'selected' : ''}`}
+                  onClick={() => setReason(r.value)}
+                >
+                  <span className="reason-icon">{r.icon}</span>
+                  <span className="reason-label">{r.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Cost per {item.unit_type} (optional)</label>
+            <div className="cost-input-group">
+              <span className="cost-prefix">$</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={costPerUnit}
+                onChange={(e) => setCostPerUnit(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            {estimatedCost && (
+              <div className="cost-estimate">
+                Estimated loss: <strong>${estimatedCost}</strong>
+              </div>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label>Notes (optional)</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any details about the waste..."
+              rows={2}
+            />
+          </div>
+
+          <div className="action-row">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-danger"
+              disabled={saving || !reason || quantity <= 0}
+            >
+              {saving ? 'Recording...' : 'Log Waste'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Waste Report Component
+function WasteReport({ onItemClick }) {
+  const [analytics, setAnalytics] = useState(null);
+  const [wasteRecords, setWasteRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(30);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [analyticsData, records] = await Promise.all([
+          api.getWasteAnalytics(days),
+          api.getAllWaste(days)
+        ]);
+        setAnalytics(analyticsData);
+        setWasteRecords(records);
+      } catch (err) {
+        console.error('Failed to fetch waste data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [days]);
+
+  if (loading) {
+    return (
+      <div className="loading">
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  const reasonLabel = (reason) => WASTE_REASONS.find(r => r.value === reason)?.label || reason;
+  const reasonIcon = (reason) => WASTE_REASONS.find(r => r.value === reason)?.icon || '📝';
+
+  return (
+    <div className="waste-report">
+      <div className="report-header">
+        <h2>Waste Report</h2>
+        <select value={days} onChange={(e) => setDays(parseInt(e.target.value))}>
+          <option value={7}>Last 7 days</option>
+          <option value={14}>Last 14 days</option>
+          <option value={30}>Last 30 days</option>
+          <option value={90}>Last 90 days</option>
+        </select>
+      </div>
+
+      {analytics && (
+        <>
+          {/* Summary Cards */}
+          <div className="waste-summary-cards">
+            <div className="waste-summary-card">
+              <div className="summary-value">{analytics.summary.total_records || 0}</div>
+              <div className="summary-label">Waste Events</div>
+            </div>
+            <div className="waste-summary-card">
+              <div className="summary-value">{Math.round(analytics.summary.total_quantity || 0)}</div>
+              <div className="summary-label">Units Wasted</div>
+            </div>
+            <div className="waste-summary-card highlight">
+              <div className="summary-value">${(analytics.summary.total_cost || 0).toFixed(2)}</div>
+              <div className="summary-label">Est. Cost</div>
+            </div>
+          </div>
+
+          {/* By Reason Breakdown */}
+          {analytics.byReason.length > 0 && (
+            <div className="waste-section">
+              <h3>By Reason</h3>
+              <div className="reason-breakdown">
+                {analytics.byReason.map((r) => {
+                  const maxQty = Math.max(...analytics.byReason.map(x => x.total_quantity));
+                  const pct = maxQty > 0 ? (r.total_quantity / maxQty) * 100 : 0;
+                  return (
+                    <div key={r.reason} className="reason-row">
+                      <div className="reason-info">
+                        <span className="reason-icon">{reasonIcon(r.reason)}</span>
+                        <span className="reason-name">{reasonLabel(r.reason)}</span>
+                      </div>
+                      <div className="reason-bar-container">
+                        <div className="reason-bar" style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="reason-stats">
+                        <span className="reason-qty">{Math.round(r.total_quantity)}</span>
+                        {r.total_cost > 0 && <span className="reason-cost">${r.total_cost.toFixed(2)}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Top Wasted Items */}
+          {analytics.topItems.length > 0 && (
+            <div className="waste-section">
+              <h3>Most Wasted Items</h3>
+              <div className="top-wasted-list">
+                {analytics.topItems.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="top-wasted-item"
+                    onClick={() => onItemClick?.({ id: item.id, name: item.name, category: item.category })}
+                  >
+                    <span className="rank">#{idx + 1}</span>
+                    <div className="item-info">
+                      <div className="item-name">{item.name}</div>
+                      <div className="item-category">{item.category}</div>
+                    </div>
+                    <div className="waste-stats">
+                      <span className="waste-qty">{Math.round(item.total_wasted)} {item.unit_type}</span>
+                      {item.total_cost > 0 && <span className="waste-cost">${item.total_cost.toFixed(2)}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Recent Waste Log */}
+      {wasteRecords.length > 0 && (
+        <div className="waste-section">
+          <h3>Recent Waste Log</h3>
+          <div className="waste-log-list">
+            {wasteRecords.slice(0, 20).map((record) => (
+              <div key={record.id} className="waste-log-item">
+                <div className="log-icon">{reasonIcon(record.reason)}</div>
+                <div className="log-info">
+                  <div className="log-item-name">{record.item_name}</div>
+                  <div className="log-details">
+                    {record.quantity} {record.unit_type} - {reasonLabel(record.reason)}
+                    {record.notes && <span className="log-notes"> - {record.notes}</span>}
+                  </div>
+                </div>
+                <div className="log-meta">
+                  <div className="log-date">
+                    {new Date(record.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </div>
+                  {record.cost_estimate > 0 && (
+                    <div className="log-cost">${record.cost_estimate.toFixed(2)}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {wasteRecords.length === 0 && (
+        <div className="empty-state">
+          <p>No waste recorded yet</p>
+          <p>Log waste from item details to start tracking</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Quick Update Modal (for existing items)
-function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUpdateCategory, categories = [] }) {
+function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUpdateCategory, onLogWaste, categories = [] }) {
   const [mode, setMode] = useState('add'); // 'add' or 'set'
+  const [showUsageAnalytics, setShowUsageAnalytics] = useState(false);
   const [amount, setAmount] = useState(0);
   const [saving, setSaving] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -959,7 +1441,30 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
           {stockStatus === 'low' && (
             <div className="stock-warning">⚠️ {getStockSeverity(item.current_quantity, item.min_quantity)}% below target</div>
           )}
+          {item.usage?.hasData && (
+            <div className="usage-info">
+              <span>Usage: ~{item.usage.averagePerDay} {item.unit_type}/day</span>
+              {item.usage.daysRemaining !== null && (
+                <span className={`days-remaining ${item.usage.daysRemaining <= 3 ? 'urgent' : ''}`}>
+                  {item.usage.daysRemaining === 0 ? 'Out today' :
+                   item.usage.daysRemaining === 1 ? 'Out tomorrow' :
+                   `${item.usage.daysRemaining} days remaining`}
+                </span>
+              )}
+            </div>
+          )}
+          <button
+            className="view-analytics-btn"
+            onClick={() => setShowUsageAnalytics(!showUsageAnalytics)}
+          >
+            {showUsageAnalytics ? 'Hide Analytics' : 'View Usage Analytics'}
+          </button>
         </div>
+
+        {/* Usage Analytics Panel */}
+        {showUsageAnalytics && (
+          <UsageAnalytics item={item} />
+        )}
 
         {/* Mode Toggle */}
         <div className="mode-toggle">
@@ -1015,6 +1520,9 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
           <button className="btn btn-secondary" onClick={() => onEdit(item)}>
             Edit Details
           </button>
+          <button className="btn btn-danger-outline" onClick={() => onLogWaste?.(item)}>
+            Log Waste
+          </button>
           <button
             className="btn btn-success"
             onClick={handleSave}
@@ -1033,6 +1541,23 @@ function InventoryItemCard({ item, onClick, showThreshold = true }) {
   const status = getStockStatus(item.current_quantity, item.min_quantity);
   const percentage = getStockPercentage(item.current_quantity, item.min_quantity);
   const severity = getStockSeverity(item.current_quantity, item.min_quantity);
+  const daysRemaining = item.usage?.daysRemaining;
+  const hasUsageData = item.usage?.hasData;
+
+  // Build status indicator text
+  let statusText;
+  if (daysRemaining !== null && daysRemaining !== undefined && status !== 'good') {
+    if (daysRemaining === 0) statusText = 'Out today';
+    else if (daysRemaining === 1) statusText = 'Out tomorrow';
+    else if (daysRemaining <= 3) statusText = `${daysRemaining} days left`;
+    else statusText = `${daysRemaining}d remaining`;
+  } else if (status === 'low') {
+    statusText = `${severity}% below`;
+  } else if (status === 'medium') {
+    statusText = 'Getting low';
+  } else {
+    statusText = hasUsageData && daysRemaining ? `${daysRemaining}d supply` : 'OK';
+  }
 
   return (
     <div
@@ -1048,7 +1573,7 @@ function InventoryItemCard({ item, onClick, showThreshold = true }) {
             <>
               <span style={{ color: 'var(--gray-400)' }}>•</span>
               <span className={`stock-indicator ${status}`}>
-                {status === 'low' ? `${severity}% below` : status === 'medium' ? 'Getting low' : 'OK'}
+                {statusText}
               </span>
             </>
           )}
@@ -1195,10 +1720,25 @@ function InventoryList({ items, onItemClick, onAddItem, loading, categories, rec
 function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRestock }) {
   const totalItems = items.length;
 
-  // Get low stock items and sort by severity (most critical first)
+  // Get low stock items and sort by urgency (days remaining, then severity)
   const lowStockItems = items
     .filter((i) => i.current_quantity <= i.min_quantity && i.min_quantity > 0)
-    .sort((a, b) => getStockSeverity(b.current_quantity, b.min_quantity) - getStockSeverity(a.current_quantity, a.min_quantity));
+    .sort((a, b) => {
+      // Items with usage data and fewer days remaining come first
+      const aDays = a.usage?.daysRemaining;
+      const bDays = b.usage?.daysRemaining;
+
+      // If both have days remaining data, sort by that
+      if (aDays !== null && aDays !== undefined && bDays !== null && bDays !== undefined) {
+        return aDays - bDays;
+      }
+      // Items with days remaining data come before those without
+      if (aDays !== null && aDays !== undefined) return -1;
+      if (bDays !== null && bDays !== undefined) return 1;
+
+      // Fall back to severity sorting
+      return getStockSeverity(b.current_quantity, b.min_quantity) - getStockSeverity(a.current_quantity, a.min_quantity);
+    });
 
   const mediumStockItems = items.filter((i) => {
     const status = getStockStatus(i.current_quantity, i.min_quantity);
@@ -1263,8 +1803,33 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
             {lowStockItems.map((item) => {
               const percentage = getStockPercentage(item.current_quantity, item.min_quantity);
               const needed = item.min_quantity - item.current_quantity;
-              const severityClass = percentage <= 25 ? 'critical' : 'warning';
-              const severityLabel = percentage <= 25 ? 'CRITICAL' : 'LOW';
+              const daysRemaining = item.usage?.daysRemaining;
+              const hasUsageData = item.usage?.hasData;
+
+              // Determine severity based on days remaining (if available) or percentage
+              let severityClass = 'warning';
+              if (daysRemaining !== null && daysRemaining !== undefined) {
+                if (daysRemaining <= 1) severityClass = 'critical';
+                else if (daysRemaining <= 3) severityClass = 'warning';
+              } else if (percentage <= 25) {
+                severityClass = 'critical';
+              }
+
+              // Build status message
+              let statusMessage;
+              if (daysRemaining !== null && daysRemaining !== undefined) {
+                if (daysRemaining === 0) {
+                  statusMessage = 'Out today';
+                } else if (daysRemaining === 1) {
+                  statusMessage = 'Out tomorrow';
+                } else {
+                  statusMessage = `${daysRemaining} days left`;
+                }
+              } else if (hasUsageData === false) {
+                statusMessage = `Need ${needed} more`;
+              } else {
+                statusMessage = `Need ${needed} more ${item.unit_type}`;
+              }
 
               return (
                 <div key={item.id} className={`alert-card ${severityClass}`}>
@@ -1272,8 +1837,13 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
                     <div className="alert-card-info">
                       <div className="alert-card-name">{item.name}</div>
                       <div className={`alert-card-status ${severityClass}`}>
-                        Need {needed} more {item.unit_type}
+                        {statusMessage}
                       </div>
+                      {item.usage?.averagePerDay > 0 && (
+                        <div className="alert-card-usage">
+                          Using ~{item.usage.averagePerDay}/{item.unit_type} per day
+                        </div>
+                      )}
                     </div>
                     <div className="alert-card-quantity">
                       <span className="current">{item.current_quantity}</span>
@@ -1335,8 +1905,50 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
 }
 
 // Restock List Component (Shopping List)
-function RestockList({ items, onUpdateQuantity, onRemove, onClear, onItemClick }) {
+function RestockList({ items, onUpdateQuantity, onRemove, onClear, onItemClick, allItems }) {
+  const [targetDays, setTargetDays] = useState(7);
   const totalItems = items.length;
+
+  // Calculate smart suggestions for each item
+  const getSmartSuggestion = (item) => {
+    // Find the live item data with usage info
+    const liveItem = allItems?.find(i => i.id === item.id) || item;
+    const avgPerDay = liveItem.usage?.averagePerDay || 0;
+
+    if (avgPerDay > 0) {
+      // Calculate how much is needed for target days
+      const neededForTargetDays = Math.ceil(avgPerDay * targetDays);
+      const currentStock = liveItem.current_quantity || 0;
+      const suggested = Math.max(0, neededForTargetDays - currentStock);
+
+      return {
+        suggested,
+        avgPerDay,
+        daysSupply: item.orderQuantity > 0
+          ? Math.floor((currentStock + item.orderQuantity) / avgPerDay)
+          : null,
+        hasData: true
+      };
+    }
+
+    // No usage data - suggest reaching min threshold + buffer
+    const needed = Math.max(0, (item.min_quantity || 0) - (item.current_quantity || 0));
+    return {
+      suggested: Math.ceil(needed * 1.2) || 10,
+      avgPerDay: 0,
+      daysSupply: null,
+      hasData: false
+    };
+  };
+
+  const applySmartSuggestions = () => {
+    items.forEach(item => {
+      const suggestion = getSmartSuggestion(item);
+      if (suggestion.suggested > 0) {
+        onUpdateQuantity(item.id, suggestion.suggested);
+      }
+    });
+  };
 
   if (totalItems === 0) {
     return (
@@ -1359,55 +1971,92 @@ function RestockList({ items, onUpdateQuantity, onRemove, onClear, onItemClick }
         </button>
       </div>
 
+      {/* Smart Order Controls */}
+      <div className="smart-order-controls">
+        <div className="target-days-selector">
+          <label>Order for:</label>
+          <select value={targetDays} onChange={(e) => setTargetDays(parseInt(e.target.value))}>
+            <option value={3}>3 days</option>
+            <option value={5}>5 days</option>
+            <option value={7}>1 week</option>
+            <option value={14}>2 weeks</option>
+          </select>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={applySmartSuggestions}>
+          Smart Fill
+        </button>
+      </div>
+
       <div className="restock-items">
-        {items.map((item) => (
-          <div key={item.id} className="restock-item">
-            <div className="restock-item-info" onClick={() => onItemClick?.(item)}>
-              <div className="restock-item-details">
-                <div className="restock-item-name">{item.name}</div>
-                <div className="restock-item-meta">
-                  <span>Current: {item.current_quantity} {item.unit_type}</span>
-                  <span className="restock-item-needed">
-                    Need: {Math.max(0, item.min_quantity - item.current_quantity)} more
-                  </span>
+        {items.map((item) => {
+          const suggestion = getSmartSuggestion(item);
+          const liveItem = allItems?.find(i => i.id === item.id) || item;
+
+          return (
+            <div key={item.id} className="restock-item">
+              <div className="restock-item-info" onClick={() => onItemClick?.(liveItem)}>
+                <div className="restock-item-details">
+                  <div className="restock-item-name">{item.name}</div>
+                  <div className="restock-item-meta">
+                    <span>Current: {liveItem.current_quantity} {item.unit_type}</span>
+                    {suggestion.hasData && (
+                      <span className="restock-item-usage">
+                        ~{suggestion.avgPerDay}/{item.unit_type} per day
+                      </span>
+                    )}
+                  </div>
+                  {suggestion.hasData && suggestion.daysSupply !== null && (
+                    <div className={`restock-supply-info ${suggestion.daysSupply < targetDays ? 'warning' : 'good'}`}>
+                      Order gives {suggestion.daysSupply} days supply
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-            <div className="restock-item-controls">
-              <div className="restock-quantity">
-                <label>Order:</label>
-                <div className="restock-quantity-input">
-                  <button
-                    className="qty-btn"
-                    onClick={() => onUpdateQuantity(item.id, item.orderQuantity - 1)}
-                  >
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    value={item.orderQuantity}
-                    onChange={(e) => onUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
-                    min="0"
-                  />
-                  <button
-                    className="qty-btn"
-                    onClick={() => onUpdateQuantity(item.id, item.orderQuantity + 1)}
-                  >
-                    +
-                  </button>
+              <div className="restock-item-controls">
+                <div className="restock-quantity">
+                  <label>Order:</label>
+                  <div className="restock-quantity-input">
+                    <button
+                      className="qty-btn"
+                      onClick={() => onUpdateQuantity(item.id, Math.max(0, item.orderQuantity - 1))}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={item.orderQuantity}
+                      onChange={(e) => onUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
+                      min="0"
+                    />
+                    <button
+                      className="qty-btn"
+                      onClick={() => onUpdateQuantity(item.id, item.orderQuantity + 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className="restock-unit">{item.unit_type}</span>
                 </div>
-                <span className="restock-unit">{item.unit_type}</span>
+                {suggestion.hasData && item.orderQuantity !== suggestion.suggested && (
+                  <button
+                    className="smart-suggest-btn"
+                    onClick={() => onUpdateQuantity(item.id, suggestion.suggested)}
+                    title={`Suggested: ${suggestion.suggested} for ${targetDays} days`}
+                  >
+                    {suggestion.suggested}
+                  </button>
+                )}
+                <button
+                  className="restock-remove-btn"
+                  onClick={() => onRemove(item.id)}
+                  title="Remove from list"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                className="restock-remove-btn"
-                onClick={() => onRemove(item.id)}
-                title="Remove from list"
-              >
-                ✕
-              </button>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="restock-summary">
@@ -1424,8 +2073,128 @@ function RestockList({ items, onUpdateQuantity, onRemove, onClear, onItemClick }
   );
 }
 
+// Auth Screen Component
+function AuthScreen({ onAuth }) {
+  const [mode, setMode] = useState('login'); // 'login' or 'signup'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      if (mode === 'signup') {
+        if (!name.trim()) {
+          setError('Name is required');
+          setLoading(false);
+          return;
+        }
+        const data = await api.signup(email, password, name);
+        setAuthToken(data.token);
+        onAuth(data.user);
+      } else {
+        const data = await api.login(email, password);
+        setAuthToken(data.token);
+        onAuth(data.user);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="auth-screen">
+      <div className="auth-container">
+        <div className="auth-header">
+          <h1>Inventory Manager</h1>
+          <p>{mode === 'login' ? 'Sign in to your account' : 'Create a new account'}</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="auth-form">
+          {mode === 'signup' && (
+            <div className="form-group">
+              <label>Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name"
+                autoComplete="name"
+              />
+            </div>
+          )}
+
+          <div className="form-group">
+            <label>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={mode === 'signup' ? 'At least 6 characters' : 'Your password'}
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              required
+              minLength={mode === 'signup' ? 6 : undefined}
+            />
+          </div>
+
+          {error && (
+            <div className="auth-error">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="btn btn-primary btn-full btn-large"
+            disabled={loading}
+          >
+            {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+          </button>
+        </form>
+
+        <div className="auth-switch">
+          {mode === 'login' ? (
+            <p>
+              Don't have an account?{' '}
+              <button type="button" onClick={() => { setMode('signup'); setError(''); }}>
+                Sign up
+              </button>
+            </p>
+          ) : (
+            <p>
+              Already have an account?{' '}
+              <button type="button" onClick={() => { setMode('login'); setError(''); }}>
+                Sign in
+              </button>
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Settings Menu Component
-function SettingsMenu({ darkMode, onToggleDarkMode }) {
+function SettingsMenu({ darkMode, onToggleDarkMode, userName, onLogout }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -1454,6 +2223,12 @@ function SettingsMenu({ darkMode, onToggleDarkMode }) {
 
       {isOpen && (
         <div className="settings-dropdown">
+          {userName && (
+            <div className="settings-user">
+              <span className="user-icon">👤</span>
+              <span className="user-name">{userName}</span>
+            </div>
+          )}
           <div className="settings-header">Settings</div>
           <button
             className="settings-option"
@@ -1474,6 +2249,18 @@ function SettingsMenu({ darkMode, onToggleDarkMode }) {
               </span>
             </span>
           </button>
+          {onLogout && (
+            <button
+              className="settings-option logout"
+              onClick={() => {
+                onLogout();
+                setIsOpen(false);
+              }}
+            >
+              <span className="settings-option-icon">🚪</span>
+              <span className="settings-option-label">Sign Out</span>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1482,6 +2269,10 @@ function SettingsMenu({ darkMode, onToggleDarkMode }) {
 
 // Main App Component
 function AppContent() {
+  // Auth state
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [view, setView] = useState('home');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1490,6 +2281,7 @@ function AppContent() {
   const [showItemModal, setShowItemModal] = useState(false);
   const [showQuickUpdate, setShowQuickUpdate] = useState(false);
   const [showThresholdModal, setShowThresholdModal] = useState(false);
+  const [showWasteModal, setShowWasteModal] = useState(false);
   const [alert, setAlert] = useState(null);
   const [customCategories, setCustomCategories] = useState([]);
   const [recentScans, setRecentScans] = useState([]);
@@ -1504,6 +2296,42 @@ function AppContent() {
     const saved = localStorage.getItem('restockList');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // Check for existing auth on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = getAuthToken();
+      if (token) {
+        try {
+          const userData = await api.getMe();
+          if (userData) {
+            setUser(userData);
+          } else {
+            clearAuthToken();
+          }
+        } catch (err) {
+          console.error('Auth check failed:', err);
+          clearAuthToken();
+        }
+      }
+      setAuthLoading(false);
+    };
+    checkAuth();
+  }, []);
+
+  const handleAuth = (userData) => {
+    setUser(userData);
+    loadItems();
+  };
+
+  const handleLogout = () => {
+    clearAuthToken();
+    setUser(null);
+    setItems([]);
+    setRecentScans([]);
+    setRestockList([]);
+    setView('home');
+  };
 
   // Save restock list to localStorage
   useEffect(() => {
@@ -1594,6 +2422,24 @@ function AppContent() {
     }
   };
 
+  const handleLogWaste = (item) => {
+    setSelectedItem(item);
+    setShowQuickUpdate(false);
+    setShowWasteModal(true);
+  };
+
+  const handleSaveWaste = async (itemId, quantity, reason, notes, costEstimate) => {
+    try {
+      await api.recordWaste(itemId, quantity, reason, notes, costEstimate);
+      showAlert('success', 'Waste logged successfully');
+      await loadItems();
+      setShowWasteModal(false);
+      setSelectedItem(null);
+    } catch (err) {
+      showAlert('error', 'Failed to log waste');
+    }
+  };
+
   const handleNavigateToInventory = (filter) => {
     if (filter === 'all') {
       setStockFilter(null);
@@ -1632,8 +2478,10 @@ function AppContent() {
   };
 
   useEffect(() => {
-    loadItems();
-  }, []);
+    if (user) {
+      loadItems();
+    }
+  }, [user]);
 
   const [lookupData, setLookupData] = useState(null);
 
@@ -1720,6 +2568,17 @@ function AppContent() {
     }
   };
 
+  // Quick +/- buttons from scan view (doesn't close modals)
+  const handleScanQuickAdjust = async (id, quantity) => {
+    try {
+      await api.updateQuantity(id, quantity);
+      showAlert('success', 'Updated');
+      await loadItems();
+    } catch (err) {
+      showAlert('error', 'Failed to update');
+    }
+  };
+
   const handleDeleteItem = async (id) => {
     if (!confirm('Are you sure you want to delete this item?')) return;
 
@@ -1769,11 +2628,36 @@ function AppContent() {
     setScannedBarcode(null);
   };
 
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="app">
+        <div className="loading">
+          <div className="spinner"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show auth screen if not logged in
+  if (!user) {
+    return (
+      <div className={`app ${darkMode ? 'dark' : ''}`}>
+        <AuthScreen onAuth={handleAuth} />
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="header">
-        <SettingsMenu darkMode={darkMode} onToggleDarkMode={toggleDarkMode} />
-        <h1>Inventory Manager</h1>
+        <SettingsMenu
+          darkMode={darkMode}
+          onToggleDarkMode={toggleDarkMode}
+          userName={user?.name}
+          onLogout={handleLogout}
+        />
+        <h1 onClick={() => setView('home')} style={{ cursor: 'pointer' }}>Inventory Manager</h1>
         <div className="header-spacer" />
       </header>
 
@@ -1811,6 +2695,12 @@ function AppContent() {
             <span className="nav-badge">{restockList.length}</span>
           )}
         </button>
+        <button
+          className={`nav-btn ${view === 'waste' ? 'active' : ''}`}
+          onClick={() => setView('waste')}
+        >
+          Waste
+        </button>
       </nav>
 
       {view === 'scan' && (
@@ -1839,25 +2729,64 @@ function AppContent() {
           {recentScans.length > 0 && (
             <div className="recent-scans">
               <h3>Recent Scans</h3>
-              {recentScans.map((scan) => (
-                <div
-                  key={scan.barcode}
-                  className="recent-scan-item"
-                  onClick={() => handleItemClick(scan)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="info">
-                    <div className="icon">{getCategoryIcon(scan.category)}</div>
-                    <div>
-                      <div className="name">{scan.name}</div>
-                      <div className="time">{scan.current_quantity} {scan.unit_type}</div>
+              {recentScans.map((scan) => {
+                const status = getStockStatus(scan.current_quantity, scan.min_quantity);
+                const currentItem = items.find(i => i.id === scan.id);
+                const liveQuantity = currentItem?.current_quantity ?? scan.current_quantity;
+
+                return (
+                  <div key={scan.barcode} className={`recent-scan-item ${status}`}>
+                    <div className="recent-scan-main" onClick={() => handleItemClick(currentItem || scan)}>
+                      <div className="info">
+                        <div className="icon">{getCategoryIcon(scan.category)}</div>
+                        <div>
+                          <div className="name">{scan.name}</div>
+                          <div className="scan-meta">
+                            <span className={`scan-quantity ${status}`}>{liveQuantity} {scan.unit_type}</span>
+                            {scan.min_quantity > 0 && (
+                              <span className={`scan-status ${status}`}>
+                                {status === 'low' ? 'Low' : status === 'medium' ? 'Getting low' : 'OK'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="recent-scan-actions">
+                      <button
+                        className="quick-qty-btn minus"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleScanQuickAdjust(scan.id, Math.max(0, liveQuantity - 1));
+                        }}
+                        title="Remove 1"
+                      >
+                        −1
+                      </button>
+                      <button
+                        className="quick-qty-btn plus"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleScanQuickAdjust(scan.id, liveQuantity + 1);
+                        }}
+                        title="Add 1"
+                      >
+                        +1
+                      </button>
+                      <button
+                        className="quick-qty-btn plus large"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleScanQuickAdjust(scan.id, liveQuantity + 5);
+                        }}
+                        title="Add 5"
+                      >
+                        +5
+                      </button>
                     </div>
                   </div>
-                  <div style={{ color: 'var(--gray-400)', fontSize: '0.75rem' }}>
-                    {scan.scannedAt && new Date(scan.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1897,11 +2826,16 @@ function AppContent() {
       {view === 'restock' && (
         <RestockList
           items={restockList}
+          allItems={items}
           onUpdateQuantity={updateRestockQuantity}
           onRemove={removeFromRestockList}
           onClear={clearRestockList}
           onItemClick={handleItemClick}
         />
+      )}
+
+      {view === 'waste' && (
+        <WasteReport onItemClick={handleItemClick} />
       )}
 
       {showItemModal && (
@@ -1925,7 +2859,16 @@ function AppContent() {
           onEdit={handleEditDetails}
           onEditThreshold={handleEditThreshold}
           onUpdateCategory={handleUpdateCategory}
+          onLogWaste={handleLogWaste}
           categories={customCategories}
+        />
+      )}
+
+      {showWasteModal && selectedItem && (
+        <LogWasteModal
+          item={selectedItem}
+          onSave={handleSaveWaste}
+          onClose={() => { setShowWasteModal(false); setSelectedItem(null); }}
         />
       )}
 
