@@ -2238,7 +2238,7 @@ function SettingsMenu({ darkMode, onToggleDarkMode, userName, onLogout }) {
             }}
           >
             <span className="settings-option-icon">
-              {darkMode ? '☀️' : '🌙'}
+              {darkMode ? '○' : '●'}
             </span>
             <span className="settings-option-label">
               {darkMode ? 'Light Mode' : 'Dark Mode'}
@@ -2257,7 +2257,7 @@ function SettingsMenu({ darkMode, onToggleDarkMode, userName, onLogout }) {
                 setIsOpen(false);
               }}
             >
-              <span className="settings-option-icon">🚪</span>
+              <span className="settings-option-icon">→</span>
               <span className="settings-option-label">Sign Out</span>
             </button>
           )}
