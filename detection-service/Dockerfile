@@ -5,11 +5,13 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgomp1 \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+RUN curl -L -o yolov8n.onnx https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.onnx
 
 COPY . .
 

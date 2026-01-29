@@ -52,7 +52,7 @@ async def health_check() -> HealthResponse:
     return HealthResponse(
         status="healthy" if detector and detector.is_loaded else "degraded",
         model_loaded=detector.is_loaded if detector else False,
-        model_name=settings.model_name,
+        model_name=settings.model_path,
         version="1.0.0",
     )
 
@@ -104,16 +104,8 @@ async def detect_objects(
 
 @app.get("/classes")
 async def get_supported_classes() -> dict:
-    if detector is None or not detector.is_loaded:
-        raise HTTPException(status_code=503, detail="Detection model not available")
-
+    from detector import COCO_CLASSES, INVENTORY_RELEVANT
     return {
-        "all_classes": detector.model.names,
-        "inventory_relevant": {
-            k: detector.model.names[k]
-            for k in sorted(
-                set(detector.model.names.keys())
-                & set([39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 67, 73, 74, 75])
-            )
-        },
+        "all_classes": COCO_CLASSES,
+        "inventory_relevant": {k: COCO_CLASSES[k] for k in sorted(INVENTORY_RELEVANT)},
     }

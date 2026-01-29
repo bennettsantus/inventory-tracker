@@ -1,10 +1,9 @@
-import os
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    model_name: str = "yolo26n.pt"
+    model_path: str = "yolov8n.onnx"
     confidence_threshold: float = 0.25
     iou_threshold: float = 0.45
     max_image_size: int = 1280
