@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, Component } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { detectObjects, checkHealth, blobToFile } from './detectionService';
 
 // Error Boundary to prevent white screen crashes
 class ErrorBoundary extends Component {
@@ -2262,6 +2263,259 @@ function SettingsMenu({ darkMode, onToggleDarkMode, userName, onLogout }) {
   );
 }
 
+// Detection View Component
+function DetectView({ onAddToInventory }) {
+  const [mode, setMode] = useState('camera');
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectionResult, setDetectionResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [serviceStatus, setServiceStatus] = useState(null);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    checkHealth().then(setServiceStatus);
+  }, []);
+
+  useEffect(() => {
+    if (mode === 'camera') {
+      startCamera();
+    }
+    return () => stopCamera();
+  }, [mode]);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setError(null);
+    } catch (err) {
+      setError('Camera access denied. Please enable camera permissions.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
+
+    canvas.toBlob(blob => {
+      if (blob) {
+        setCapturedImage(URL.createObjectURL(blob));
+        runDetection(blobToFile(blob, 'capture.jpg'));
+      }
+    }, 'image/jpeg', 0.9);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCapturedImage(URL.createObjectURL(file));
+    runDetection(file);
+  };
+
+  const runDetection = async (file) => {
+    setIsDetecting(true);
+    setError(null);
+    setDetectionResult(null);
+
+    try {
+      const result = await detectObjects(file, { confidence: 0.3, filterInventory: true });
+      setDetectionResult(result);
+
+      if (result.detections?.length > 0 && canvasRef.current) {
+        drawDetections(result.detections);
+      }
+    } catch (err) {
+      setError(err.message || 'Detection failed');
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  const drawDetections = (detections) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      detections.forEach(det => {
+        const { bbox, class_name, confidence } = det;
+
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(bbox.x1, bbox.y1, bbox.x2 - bbox.x1, bbox.y2 - bbox.y1);
+
+        const label = `${class_name} ${(confidence * 100).toFixed(0)}%`;
+        ctx.font = 'bold 16px system-ui';
+        const textWidth = ctx.measureText(label).width;
+
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(bbox.x1, bbox.y1 - 24, textWidth + 8, 24);
+
+        ctx.fillStyle = '#fff';
+        ctx.fillText(label, bbox.x1 + 4, bbox.y1 - 6);
+      });
+    };
+    img.src = capturedImage;
+  };
+
+  const resetDetection = () => {
+    setDetectionResult(null);
+    setCapturedImage(null);
+    setError(null);
+    if (mode === 'camera') startCamera();
+  };
+
+  const serviceUnavailable = !serviceStatus || serviceStatus.status === 'unavailable' || serviceStatus.status === 'offline';
+
+  if (serviceUnavailable) {
+    return (
+      <div className="detect-placeholder">
+        <div className="detect-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="64" height="64">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+        </div>
+        <h2>AI Detection</h2>
+        <p className="detect-subtitle">YOLOv26 Object Detection</p>
+        <div className="detect-status">Service Starting...</div>
+        <p className="detect-description">
+          The detection service is initializing. This may take a moment on first load.
+        </p>
+        <button className="btn btn-primary" onClick={() => checkHealth().then(setServiceStatus)} style={{ marginTop: '1rem' }}>
+          Check Status
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="detect-view">
+      <div className="detect-mode-toggle">
+        <button className={`mode-tab ${mode === 'camera' ? 'active' : ''}`} onClick={() => { setMode('camera'); resetDetection(); }}>
+          Camera
+        </button>
+        <button className={`mode-tab ${mode === 'upload' ? 'active' : ''}`} onClick={() => { setMode('upload'); stopCamera(); resetDetection(); }}>
+          Upload Photo
+        </button>
+      </div>
+
+      {error && <div className="alert alert-error">{error}</div>}
+
+      <div className="detect-camera-container">
+        {mode === 'camera' && !capturedImage && (
+          <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', display: 'block' }} />
+        )}
+
+        {capturedImage && (
+          <canvas ref={canvasRef} style={{ width: '100%', display: 'block' }} />
+        )}
+
+        {mode === 'upload' && !capturedImage && (
+          <div className="detect-upload-area" onClick={() => fileInputRef.current?.click()}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="48" height="48">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <p>Tap to upload a photo</p>
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
+          </div>
+        )}
+
+        {isDetecting && (
+          <div className="detect-loading-overlay">
+            <div className="spinner" />
+            <p>Analyzing image...</p>
+          </div>
+        )}
+      </div>
+
+      <div className="detect-controls">
+        {mode === 'camera' && !capturedImage && (
+          <button className="btn btn-primary btn-lg" onClick={capturePhoto} style={{ width: '100%' }}>
+            Capture & Detect
+          </button>
+        )}
+
+        {capturedImage && (
+          <button className="btn btn-secondary" onClick={resetDetection} style={{ width: '100%' }}>
+            {mode === 'camera' ? 'Take New Photo' : 'Upload Another'}
+          </button>
+        )}
+      </div>
+
+      {detectionResult && detectionResult.summary.length > 0 && (
+        <div className="detect-results">
+          <div className="detect-summary-header">
+            <h3>Detected Items</h3>
+            <span className="detect-time">{detectionResult.processing_time_ms.toFixed(0)}ms</span>
+          </div>
+
+          <div className="detect-summary-stats">
+            <div className="stat-box">
+              <span className="stat-value">{detectionResult.total_objects}</span>
+              <span className="stat-label">Objects</span>
+            </div>
+            <div className="stat-box">
+              <span className="stat-value">{detectionResult.summary.length}</span>
+              <span className="stat-label">Types</span>
+            </div>
+          </div>
+
+          <div className="detect-items-list">
+            {detectionResult.summary.map((item, idx) => (
+              <div key={idx} className="detect-item-row">
+                <div className="detect-item-info">
+                  <span className="detect-item-name">{item.class_name}</span>
+                  <span className="detect-item-conf">{(item.avg_confidence * 100).toFixed(0)}% confidence</span>
+                </div>
+                <div className="detect-item-count">x{item.count}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {detectionResult && detectionResult.summary.length === 0 && (
+        <div className="detect-no-results">
+          <p>No inventory items detected. Try adjusting the camera angle or lighting.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Main App Component
 function AppContent() {
   // Auth state
@@ -2840,21 +3094,7 @@ function AppContent() {
       )}
 
       {view === 'detect' && (
-        <div className="detect-placeholder">
-          <div className="detect-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="64" height="64">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <path d="M21 15l-5-5L5 21"/>
-            </svg>
-          </div>
-          <h2>AI Detection</h2>
-          <p className="detect-subtitle">YOLOv26 Object Detection</p>
-          <div className="detect-status">Under Work</div>
-          <p className="detect-description">
-            Soon you'll be able to scan items with your camera and automatically identify inventory using AI.
-          </p>
-        </div>
+        <DetectView />
       )}
 
       {showItemModal && (
