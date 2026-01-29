@@ -2347,15 +2347,22 @@ function DetectView({ onAddToInventory }) {
     setError(null);
     setDetectionResult(null);
 
+    console.log('Starting detection for file:', file.name, 'Type:', file.type, 'Size:', file.size);
+
     try {
       const result = await detectObjects(file, { confidence: 0.3, filterInventory: true });
+      console.log('Detection result:', result);
       setDetectionResult(result);
 
       if (result.detections?.length > 0 && canvasRef.current) {
         drawDetections(result.detections);
       }
     } catch (err) {
-      setError(err.message || 'Detection failed');
+      console.error('Detection error:', err);
+      const errorMsg = err.status
+        ? `Error ${err.status}: ${err.message}`
+        : `Network error: ${err.message || 'Could not connect to detection service'}`;
+      setError(errorMsg);
     } finally {
       setIsDetecting(false);
     }

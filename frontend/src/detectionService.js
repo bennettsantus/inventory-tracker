@@ -12,7 +12,7 @@ export async function detectObjects(imageFile, options = {}) {
   const { confidence = 0.25, filterInventory = true } = options;
 
   if (!DETECTION_API_URL) {
-    throw new DetectionError('Detection service not configured', 503);
+    throw new DetectionError('Detection service not configured. Check VITE_DETECTION_API_URL.', 503);
   }
 
   const formData = new FormData();
@@ -24,14 +24,30 @@ export async function detectObjects(imageFile, options = {}) {
 
   const url = `${DETECTION_API_URL}/detect?${params}`;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    body: formData,
-  });
+  console.log('Sending detection request to:', url);
+  console.log('File:', imageFile.name, 'Size:', imageFile.size, 'Type:', imageFile.type);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    });
+  } catch (networkError) {
+    console.error('Network error:', networkError);
+    throw new DetectionError(`Network error: ${networkError.message}`, 0);
+  }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Detection failed' }));
-    throw new DetectionError(error.detail || 'Detection failed', response.status);
+    const errorText = await response.text();
+    console.error('Server error:', response.status, errorText);
+    let errorDetail;
+    try {
+      errorDetail = JSON.parse(errorText).detail;
+    } catch {
+      errorDetail = errorText || `Server error ${response.status}`;
+    }
+    throw new DetectionError(errorDetail, response.status);
   }
 
   return response.json();
