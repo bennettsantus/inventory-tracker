@@ -9,6 +9,12 @@ import numpy as np
 import onnxruntime as ort
 from PIL import Image
 
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
+
 from config import Settings
 from models import (
     BoundingBox,

@@ -2449,7 +2449,7 @@ function DetectView({ onAddToInventory }) {
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
             <p>Tap to upload a photo</p>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
+            <input ref={fileInputRef} type="file" accept="image/*,.heic,.heif" capture="environment" onChange={handleFileUpload} style={{ display: 'none' }} />
           </div>
         )}
 
