@@ -2243,11 +2243,6 @@ function SettingsMenu({ darkMode, onToggleDarkMode, userName, onLogout }) {
             <span className="settings-option-label">
               {darkMode ? 'Light Mode' : 'Dark Mode'}
             </span>
-            <span className="settings-option-toggle">
-              <span className={`toggle-track ${darkMode ? 'active' : ''}`}>
-                <span className="toggle-thumb" />
-              </span>
-            </span>
           </button>
           {onLogout && (
             <button
