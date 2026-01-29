@@ -2332,7 +2332,13 @@ function DetectView({ onAddToInventory }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setCapturedImage(URL.createObjectURL(file));
+    const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+
+    if (isHeic) {
+      setCapturedImage('heic-placeholder');
+    } else {
+      setCapturedImage(URL.createObjectURL(file));
+    }
     runDetection(file);
   };
 
@@ -2437,8 +2443,19 @@ function DetectView({ onAddToInventory }) {
           <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', display: 'block' }} />
         )}
 
-        {capturedImage && (
+        {capturedImage && capturedImage !== 'heic-placeholder' && (
           <canvas ref={canvasRef} style={{ width: '100%', display: 'block' }} />
+        )}
+
+        {capturedImage === 'heic-placeholder' && (
+          <div className="detect-heic-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="48" height="48">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="M21 15l-5-5L5 21"/>
+            </svg>
+            <p>HEIC image uploaded</p>
+          </div>
         )}
 
         {mode === 'upload' && !capturedImage && (
