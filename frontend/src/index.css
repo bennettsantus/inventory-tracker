@@ -2903,3 +2903,59 @@ body {
 :root.dark .settings-user {
   background: var(--gray-700);
 }
+
+/* Detect Placeholder Styles */
+.detect-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  min-height: 60vh;
+}
+
+.detect-icon {
+  color: var(--gray-400);
+  margin-bottom: 1.5rem;
+}
+
+.detect-placeholder h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.detect-subtitle {
+  font-size: 1rem;
+  color: var(--gray-500);
+  margin-bottom: 1rem;
+}
+
+.detect-status {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
+  border: 1px solid var(--status-warning-border);
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+}
+
+.detect-description {
+  font-size: 0.9375rem;
+  color: var(--gray-600);
+  max-width: 300px;
+  line-height: 1.5;
+}
+
+:root.dark .detect-icon {
+  color: var(--gray-500);
+}
+
+:root.dark .detect-status {
+  background: rgba(221, 107, 32, 0.15);
+}

@@ -2696,6 +2696,12 @@ function AppContent() {
         >
           Waste
         </button>
+        <button
+          className={`nav-btn ${view === 'detect' ? 'active' : ''}`}
+          onClick={() => setView('detect')}
+        >
+          Detect
+        </button>
       </nav>
 
       {view === 'scan' && (
@@ -2831,6 +2837,24 @@ function AppContent() {
 
       {view === 'waste' && (
         <WasteReport onItemClick={handleItemClick} />
+      )}
+
+      {view === 'detect' && (
+        <div className="detect-placeholder">
+          <div className="detect-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="64" height="64">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="M21 15l-5-5L5 21"/>
+            </svg>
+          </div>
+          <h2>AI Detection</h2>
+          <p className="detect-subtitle">YOLOv26 Object Detection</p>
+          <div className="detect-status">Under Work</div>
+          <p className="detect-description">
+            Soon you'll be able to scan items with your camera and automatically identify inventory using AI.
+          </p>
+        </div>
       )}
 
       {showItemModal && (
