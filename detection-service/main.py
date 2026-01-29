@@ -1,13 +1,11 @@
 import logging
 import sys
-from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_settings
-from detector import YOLODetector
 from models import DetectionResponse, HealthResponse
 
 settings = get_settings()
@@ -19,28 +17,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-detector: YOLODetector | None = None
+detector = None
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("Starting detection service")
-    yield
-    logger.info("Shutting down detection service")
-
-
-def get_detector() -> YOLODetector:
+def get_detector():
     global detector
     if detector is None:
+        from detector import YOLODetector
         detector = YOLODetector(settings)
     return detector
 
 
 app = FastAPI(
     title="Inventory Detection API",
-    description="YOLO26-powered object detection for restaurant inventory",
+    description="YOLO-powered object detection for restaurant inventory",
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -52,11 +43,16 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+async def root():
+    return {"status": "ok"}
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     return HealthResponse(
         status="healthy",
-        model_loaded=detector.is_loaded if detector else False,
+        model_loaded=detector is not None and detector.is_loaded,
         model_name=settings.model_path,
         version="1.0.0",
     )
