@@ -24,11 +24,16 @@ detector: YOLODetector | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global detector
     logger.info("Starting detection service")
-    detector = YOLODetector(settings)
     yield
     logger.info("Shutting down detection service")
+
+
+def get_detector() -> YOLODetector:
+    global detector
+    if detector is None:
+        detector = YOLODetector(settings)
+    return detector
 
 
 app = FastAPI(
@@ -50,7 +55,7 @@ app.add_middleware(
 @app.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     return HealthResponse(
-        status="healthy" if detector and detector.is_loaded else "degraded",
+        status="healthy",
         model_loaded=detector.is_loaded if detector else False,
         model_name=settings.model_path,
         version="1.0.0",
@@ -69,7 +74,8 @@ async def detect_objects(
         Query(description="Filter to inventory-relevant items only"),
     ] = True,
 ) -> DetectionResponse:
-    if detector is None or not detector.is_loaded:
+    det = get_detector()
+    if not det.is_loaded:
         raise HTTPException(status_code=503, detail="Detection model not available")
 
     if not image.content_type or not image.content_type.startswith("image/"):
@@ -90,7 +96,7 @@ async def detect_objects(
     if len(content) < 100:
         raise HTTPException(status_code=400, detail="Image file appears to be empty")
 
-    result = detector.detect(
+    result = det.detect(
         image_bytes=content,
         confidence_threshold=confidence,
         filter_inventory=filter_inventory,
