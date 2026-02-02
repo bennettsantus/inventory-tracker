@@ -2114,7 +2114,7 @@ function AuthScreen({ onAuth }) {
     <div className="auth-screen">
       <div className="auth-container">
         <div className="auth-header">
-          <h1>Inventory Manager</h1>
+          <h1>📦 Inventory Manager</h1>
           <p>{mode === 'login' ? 'Sign in to your account' : 'Create a new account'}</p>
         </div>
 
@@ -2930,7 +2930,7 @@ function AppContent() {
           userName={user?.name}
           onLogout={handleLogout}
         />
-        <h1 onClick={() => setView('home')} style={{ cursor: 'pointer' }}>Inventory Manager</h1>
+        <h1 onClick={() => setView('home')} style={{ cursor: 'pointer' }}>📦 Inventory Manager</h1>
         <div className="header-spacer" />
       </header>
 
