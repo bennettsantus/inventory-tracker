@@ -22,4 +22,4 @@ Thumbs.db
 .idea/
 
 # Database (local only - production uses persistent storage)
-# backend/inventory.db
+backend/inventory.db
