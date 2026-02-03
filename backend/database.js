@@ -3,7 +3,10 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 
-const DB_PATH = path.join(__dirname, 'inventory.db');
+// In production (Railway), use persistent volume at /data; locally use the backend folder
+const DB_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'inventory.db')
+  : path.join(__dirname, 'inventory.db');
 
 let db = null;
 
