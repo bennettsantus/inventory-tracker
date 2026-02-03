@@ -8,8 +8,9 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const isProduction = process.env.NODE_ENV === 'production';
 
-if (isProduction && !process.env.DATABASE_URL) {
-  console.error('FATAL: DATABASE_URL environment variable is not set');
+const hasDbUrl = process.env.DATABASE_URL || process.env.DATABASE_PRIVATE_URL || process.env.DATABASE_PUBLIC_URL;
+if (isProduction && !hasDbUrl) {
+  console.error('FATAL: No database URL found. Set DATABASE_URL in Railway environment variables.');
   process.exit(1);
 }
 
