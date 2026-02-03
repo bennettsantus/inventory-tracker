@@ -7,9 +7,18 @@ const db = require('./database');
 const app = express();
 const PORT = process.env.PORT || 3001;
 const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction && !process.env.DATABASE_URL) {
+  console.error('FATAL: DATABASE_URL environment variable is not set');
+  process.exit(1);
+}
+
+if (isProduction && !process.env.JWT_SECRET) {
+  console.error('WARNING: JWT_SECRET not set, using default. Set JWT_SECRET in Railway environment variables.');
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || 'inventory-app-secret-key-change-in-production';
 
-// CORS configuration - allow all origins for flexibility
 app.use(cors({
   origin: true,
   credentials: true
@@ -17,7 +26,6 @@ app.use(cors({
 
 app.use(express.json());
 
-// Serve static files from frontend build in production
 if (isProduction) {
   const frontendPath = path.join(__dirname, '../frontend/dist');
   app.use(express.static(frontendPath));
@@ -26,7 +34,7 @@ if (isProduction) {
 // ============ AUTH MIDDLEWARE ============
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -43,7 +51,6 @@ function authenticateToken(req, res, next) {
 
 // ============ AUTH ENDPOINTS ============
 
-// Sign up
 app.post('/api/auth/signup', async (req, res) => {
   try {
     const { email, password, name } = req.body;
@@ -56,8 +63,7 @@ app.post('/api/auth/signup', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    // Check if user exists
-    const existing = db.getUserByEmail(email);
+    const existing = await db.getUserByEmail(email);
     if (existing) {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
@@ -70,11 +76,11 @@ app.post('/api/auth/signup', async (req, res) => {
       token
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Signup error:', error);
+    res.status(500).json({ error: 'Failed to create account' });
   }
 });
 
-// Sign in
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -95,96 +101,96 @@ app.post('/api/auth/login', async (req, res) => {
       token
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Failed to sign in' });
   }
 });
 
-// Get current user
-app.get('/api/auth/me', authenticateToken, (req, res) => {
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const user = db.getUserById(req.user.id);
+    const user = await db.getUserById(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     res.json(user);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
   }
 });
 
 // ============ PROTECTED INVENTORY ENDPOINTS ============
 
-// Get all inventory items (with usage analytics)
-app.get('/api/items', authenticateToken, (req, res) => {
+app.get('/api/items', authenticateToken, async (req, res) => {
   try {
-    const items = db.getAllWithAnalytics(req.user.id);
+    const items = await db.getAllWithAnalytics(req.user.id);
     res.json(items);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get items error:', error);
+    res.status(500).json({ error: 'Failed to fetch inventory' });
   }
 });
 
-// Get low stock items
-app.get('/api/items/low-stock', authenticateToken, (req, res) => {
+app.get('/api/items/low-stock', authenticateToken, async (req, res) => {
   try {
-    const items = db.getLowStock(req.user.id);
+    const items = await db.getLowStock(req.user.id);
     res.json(items);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get low stock error:', error);
+    res.status(500).json({ error: 'Failed to fetch low stock items' });
   }
 });
 
-// Get categories
-app.get('/api/categories', authenticateToken, (req, res) => {
+app.get('/api/categories', authenticateToken, async (req, res) => {
   try {
-    const categories = db.getCategories(req.user.id);
+    const categories = await db.getCategories(req.user.id);
     res.json(categories);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get categories error:', error);
+    res.status(500).json({ error: 'Failed to fetch categories' });
   }
 });
 
-// Get item by barcode
-app.get('/api/items/barcode/:barcode', authenticateToken, (req, res) => {
+app.get('/api/items/barcode/:barcode', authenticateToken, async (req, res) => {
   try {
-    const item = db.getByBarcode(req.params.barcode, req.user.id);
+    const item = await db.getByBarcode(req.params.barcode, req.user.id);
     if (item) {
       res.json(item);
     } else {
       res.status(404).json({ error: 'Item not found' });
     }
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get item by barcode error:', error);
+    res.status(500).json({ error: 'Failed to fetch item' });
   }
 });
 
-// Get item by ID
-app.get('/api/items/:id', authenticateToken, (req, res) => {
+app.get('/api/items/:id', authenticateToken, async (req, res) => {
   try {
-    const item = db.getById(parseInt(req.params.id), req.user.id);
+    const item = await db.getById(parseInt(req.params.id), req.user.id);
     if (item) {
       res.json(item);
     } else {
       res.status(404).json({ error: 'Item not found' });
     }
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get item error:', error);
+    res.status(500).json({ error: 'Failed to fetch item' });
   }
 });
 
-// Get usage history for an item
-app.get('/api/items/:id/usage', authenticateToken, (req, res) => {
+app.get('/api/items/:id/usage', authenticateToken, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const days = parseInt(req.query.days) || 30;
 
-    const item = db.getById(id, req.user.id);
+    const item = await db.getById(id, req.user.id);
     if (!item) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    const history = db.getUsageHistory(id, days);
-    const analytics = db.getDailyAverage(id, days);
+    const history = await db.getUsageHistory(id, days);
+    const analytics = await db.getDailyAverage(id, days);
 
     res.json({
       item,
@@ -197,12 +203,12 @@ app.get('/api/items/:id/usage', authenticateToken, (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get usage error:', error);
+    res.status(500).json({ error: 'Failed to fetch usage data' });
   }
 });
 
-// Create new item
-app.post('/api/items', authenticateToken, (req, res) => {
+app.post('/api/items', authenticateToken, async (req, res) => {
   try {
     const { barcode, name, category, unit_type, current_quantity, min_quantity } = req.body;
 
@@ -210,13 +216,12 @@ app.post('/api/items', authenticateToken, (req, res) => {
       return res.status(400).json({ error: 'Barcode and name are required' });
     }
 
-    // Check if barcode already exists for this user
-    const existing = db.getByBarcode(barcode, req.user.id);
+    const existing = await db.getByBarcode(barcode, req.user.id);
     if (existing) {
       return res.status(409).json({ error: 'Item with this barcode already exists' });
     }
 
-    const newItem = db.insert({
+    const newItem = await db.insert({
       barcode,
       name,
       category: category || 'Uncategorized',
@@ -227,22 +232,22 @@ app.post('/api/items', authenticateToken, (req, res) => {
 
     res.status(201).json(newItem);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Create item error:', error);
+    res.status(500).json({ error: 'Failed to create item' });
   }
 });
 
-// Update item
-app.put('/api/items/:id', authenticateToken, (req, res) => {
+app.put('/api/items/:id', authenticateToken, async (req, res) => {
   try {
     const { name, category, unit_type, current_quantity, min_quantity } = req.body;
     const id = parseInt(req.params.id);
 
-    const existing = db.getById(id, req.user.id);
+    const existing = await db.getById(id, req.user.id);
     if (!existing) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    const updatedItem = db.update(id, {
+    const updatedItem = await db.update(id, {
       name: name || existing.name,
       category: category || existing.category,
       unit_type: unit_type || existing.unit_type,
@@ -252,49 +257,49 @@ app.put('/api/items/:id', authenticateToken, (req, res) => {
 
     res.json(updatedItem);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Update item error:', error);
+    res.status(500).json({ error: 'Failed to update item' });
   }
 });
 
-// Quick quantity update
-app.patch('/api/items/:id/quantity', authenticateToken, (req, res) => {
+app.patch('/api/items/:id/quantity', authenticateToken, async (req, res) => {
   try {
     const { quantity } = req.body;
     const id = parseInt(req.params.id);
 
-    const existing = db.getById(id, req.user.id);
+    const existing = await db.getById(id, req.user.id);
     if (!existing) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    const updatedItem = db.updateQuantity(id, quantity, req.user.id);
+    const updatedItem = await db.updateQuantity(id, quantity, req.user.id);
     res.json(updatedItem);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Update quantity error:', error);
+    res.status(500).json({ error: 'Failed to update quantity' });
   }
 });
 
-// Delete item
-app.delete('/api/items/:id', authenticateToken, (req, res) => {
+app.delete('/api/items/:id', authenticateToken, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const existing = db.getById(id, req.user.id);
+    const existing = await db.getById(id, req.user.id);
 
     if (!existing) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    db.deleteItem(id, req.user.id);
+    await db.deleteItem(id, req.user.id);
     res.json({ message: 'Item deleted successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Delete item error:', error);
+    res.status(500).json({ error: 'Failed to delete item' });
   }
 });
 
 // ============ WASTE TRACKING ENDPOINTS ============
 
-// Record waste
-app.post('/api/waste', authenticateToken, (req, res) => {
+app.post('/api/waste', authenticateToken, async (req, res) => {
   try {
     const { item_id, quantity, reason, notes, cost_estimate } = req.body;
 
@@ -302,62 +307,61 @@ app.post('/api/waste', authenticateToken, (req, res) => {
       return res.status(400).json({ error: 'item_id, quantity, and reason are required' });
     }
 
-    const item = db.getById(item_id, req.user.id);
+    const item = await db.getById(item_id, req.user.id);
     if (!item) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    const updatedItem = db.recordWaste(item_id, quantity, reason, notes, cost_estimate, req.user.id);
+    const updatedItem = await db.recordWaste(item_id, quantity, reason, notes, cost_estimate, req.user.id);
     res.status(201).json({ message: 'Waste recorded', item: updatedItem });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Record waste error:', error);
+    res.status(500).json({ error: 'Failed to record waste' });
   }
 });
 
-// Get all waste records
-app.get('/api/waste', authenticateToken, (req, res) => {
+app.get('/api/waste', authenticateToken, async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
-    const waste = db.getAllWaste(days, req.user.id);
+    const waste = await db.getAllWaste(days, req.user.id);
     res.json(waste);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get waste error:', error);
+    res.status(500).json({ error: 'Failed to fetch waste records' });
   }
 });
 
-// Get waste analytics
-app.get('/api/waste/analytics', authenticateToken, (req, res) => {
+app.get('/api/waste/analytics', authenticateToken, async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
-    const analytics = db.getWasteAnalytics(days, req.user.id);
+    const analytics = await db.getWasteAnalytics(days, req.user.id);
     res.json(analytics);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get waste analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch waste analytics' });
   }
 });
 
-// Get waste history for specific item
-app.get('/api/items/:id/waste', authenticateToken, (req, res) => {
+app.get('/api/items/:id/waste', authenticateToken, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const days = parseInt(req.query.days) || 30;
 
-    const item = db.getById(id, req.user.id);
+    const item = await db.getById(id, req.user.id);
     if (!item) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    const history = db.getWasteHistory(id, days, req.user.id);
+    const history = await db.getWasteHistory(id, days, req.user.id);
     res.json({ item, history });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get item waste error:', error);
+    res.status(500).json({ error: 'Failed to fetch waste history' });
   }
 });
 
-// Serve frontend for any non-API route in production (SPA catch-all)
 if (isProduction) {
   app.get('*', (req, res) => {
-    // Don't serve index.html for API routes
     if (req.path.startsWith('/api')) {
       return res.status(404).json({ error: 'API endpoint not found' });
     }
@@ -365,14 +369,11 @@ if (isProduction) {
   });
 }
 
-// Initialize database and start server
 db.initDatabase().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${isProduction ? 'production' : 'development'}`);
-    if (isProduction) {
-      console.log('Serving static frontend from ../frontend/dist');
-    }
+    console.log(`Database: ${process.env.DATABASE_URL ? 'PostgreSQL' : 'No DATABASE_URL set'}`);
   });
 }).catch(err => {
   console.error('Failed to initialize database:', err);
