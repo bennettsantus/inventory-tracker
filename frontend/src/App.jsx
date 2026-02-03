@@ -2948,6 +2948,12 @@ function AppContent() {
           Home
         </button>
         <button
+          className={`nav-btn ${view === 'detect' ? 'active' : ''}`}
+          onClick={() => setView('detect')}
+        >
+          Detect
+        </button>
+        <button
           className={`nav-btn ${view === 'scan' ? 'active' : ''}`}
           onClick={() => setView('scan')}
         >
@@ -2973,12 +2979,6 @@ function AppContent() {
           onClick={() => setView('waste')}
         >
           Waste
-        </button>
-        <button
-          className={`nav-btn ${view === 'detect' ? 'active' : ''}`}
-          onClick={() => setView('detect')}
-        >
-          Detect
         </button>
       </nav>
 
