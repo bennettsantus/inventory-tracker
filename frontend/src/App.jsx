@@ -2930,7 +2930,7 @@ function AppContent() {
           userName={user?.name}
           onLogout={handleLogout}
         />
-        <h1 onClick={() => setView('home')} style={{ cursor: 'pointer' }}>Inventory Manager</h1>
+        <h1 onClick={() => setView('home')} style={{ cursor: 'pointer' }}>Mike's Inventory Manager</h1>
         <div className="header-spacer" />
       </header>
 
