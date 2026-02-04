@@ -2890,12 +2890,12 @@ body {
 
 /* Dark mode auth styles */
 :root.dark .auth-screen {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: #000;
 }
 
 :root.dark .auth-container {
-  background: var(--gray-900);
-  border: 1px solid var(--gray-700);
+  background: #111;
+  border: 1px solid #333;
 }
 
 :root.dark .auth-header h1 {
@@ -2906,17 +2906,17 @@ body {
 }
 
 :root.dark .auth-form input {
-  background: var(--gray-800);
-  border-color: var(--gray-600);
-  color: var(--text-primary);
+  background: #1a1a1a;
+  border-color: #333;
+  color: #fff;
 }
 
 :root.dark .auth-form input::placeholder {
-  color: var(--gray-400);
+  color: #666;
 }
 
 :root.dark .auth-switch p {
-  color: var(--gray-400);
+  color: #999;
 }
 
 :root.dark .settings-user {
