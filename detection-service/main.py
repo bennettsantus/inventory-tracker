@@ -1,5 +1,6 @@
 import logging
 import sys
+import traceback
 from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
@@ -18,14 +19,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 detector = None
+detector_error = None
 
 
 def get_detector():
-    global detector
-    if detector is None:
+    global detector, detector_error
+    if detector is not None:
+        return detector
+    if detector_error is not None:
+        return None
+    try:
         from detector import YOLODetector
         detector = YOLODetector(settings)
-    return detector
+        logger.info("Detector initialized successfully")
+        return detector
+    except Exception as e:
+        detector_error = str(e)
+        logger.error(f"Failed to initialize detector: {e}")
+        logger.error(traceback.format_exc())
+        return None
 
 
 app = FastAPI(
@@ -43,6 +55,32 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting detection service...")
+    logger.info(f"Model path: {settings.model_path}")
+    # Try importing detector dependencies to catch errors early
+    errors = []
+    for mod_name in ["numpy", "cv2", "onnxruntime", "PIL"]:
+        try:
+            __import__(mod_name)
+            logger.info(f"  {mod_name}: OK")
+        except ImportError as e:
+            logger.error(f"  {mod_name}: FAILED - {e}")
+            errors.append(f"{mod_name}: {e}")
+
+    if not errors:
+        # Eagerly load the model so errors show up in logs
+        det = get_detector()
+        if det and det.is_loaded:
+            logger.info("Model loaded successfully at startup")
+        else:
+            logger.warning(f"Model failed to load: {detector_error}")
+    else:
+        global detector_error
+        detector_error = f"Missing dependencies: {', '.join(errors)}"
+
+
 @app.get("/")
 async def root():
     return {"status": "ok"}
@@ -51,11 +89,36 @@ async def root():
 @app.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     return HealthResponse(
-        status="healthy",
+        status="healthy" if detector_error is None else "error",
         model_loaded=detector is not None and detector.is_loaded,
         model_name=settings.model_path,
         version="1.0.0",
     )
+
+
+@app.get("/debug")
+async def debug_info():
+    """Debug endpoint to diagnose issues."""
+    import os
+    info = {
+        "model_path": settings.model_path,
+        "model_file_exists": os.path.exists(settings.model_path),
+        "detector_loaded": detector is not None,
+        "detector_error": detector_error,
+        "working_directory": os.getcwd(),
+        "files_in_cwd": os.listdir("."),
+        "python_version": sys.version,
+    }
+    # Check each dependency
+    deps = {}
+    for mod_name in ["numpy", "cv2", "onnxruntime", "PIL", "pillow_heif"]:
+        try:
+            mod = __import__(mod_name)
+            deps[mod_name] = getattr(mod, "__version__", "installed")
+        except ImportError as e:
+            deps[mod_name] = f"MISSING: {e}"
+    info["dependencies"] = deps
+    return info
 
 
 @app.post("/detect", response_model=DetectionResponse)
@@ -71,8 +134,11 @@ async def detect_objects(
     ] = True,
 ) -> DetectionResponse:
     det = get_detector()
-    if not det.is_loaded:
-        raise HTTPException(status_code=503, detail="Detection model not available")
+    if det is None or not det.is_loaded:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Detection model not available: {detector_error or 'unknown error'}",
+        )
 
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(
@@ -106,8 +172,11 @@ async def detect_objects(
 
 @app.get("/classes")
 async def get_supported_classes() -> dict:
-    from detector import COCO_CLASSES, INVENTORY_RELEVANT
-    return {
-        "all_classes": COCO_CLASSES,
-        "inventory_relevant": {k: COCO_CLASSES[k] for k in sorted(INVENTORY_RELEVANT)},
-    }
+    try:
+        from detector import COCO_CLASSES, INVENTORY_RELEVANT
+        return {
+            "all_classes": COCO_CLASSES,
+            "inventory_relevant": {k: COCO_CLASSES[k] for k in sorted(INVENTORY_RELEVANT)},
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load detector module: {e}")
