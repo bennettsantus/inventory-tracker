@@ -2458,10 +2458,9 @@ function DetectView({ onAddToInventory }) {
   const capturePhoto = () => {
     console.log('📸 Capture button clicked!');
     console.log('  videoRef:', !!videoRef.current);
-    console.log('  canvasRef:', !!canvasRef.current);
 
-    if (!videoRef.current || !canvasRef.current) {
-      console.error('❌ Missing refs - videoRef:', !!videoRef.current, 'canvasRef:', !!canvasRef.current);
+    if (!videoRef.current) {
+      console.error('❌ Video ref not available');
       setError('Camera not ready. Please wait and try again.');
       return;
     }
@@ -2475,15 +2474,16 @@ function DetectView({ onAddToInventory }) {
       return;
     }
 
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Create a temporary canvas for capturing (don't rely on canvasRef)
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = video.videoWidth;
+    tempCanvas.height = video.videoHeight;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = tempCanvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
     console.log('✅ Frame captured to canvas');
 
-    canvas.toBlob(blob => {
+    tempCanvas.toBlob(blob => {
       if (blob) {
         console.log('✅ Blob created:', blob.size, 'bytes');
         setCapturedImage(URL.createObjectURL(blob));
