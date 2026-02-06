@@ -87,7 +87,6 @@ class YOLODetector:
 
         orig_w, orig_h = image.size
         img = np.array(image)
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
         target_h, target_w = self.input_shape
         scale = min(target_w / orig_w, target_h / orig_h)
