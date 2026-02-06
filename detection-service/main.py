@@ -5,7 +5,6 @@ import traceback
 from pathlib import Path
 from typing import Annotated
 
-import requests
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,12 +12,6 @@ from config import get_settings
 from models import DetectionResponse, HealthResponse
 
 settings = get_settings()
-
-# Multiple mirrors for model download
-MODEL_URLS = [
-    "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.onnx",
-    "https://huggingface.co/Ultralytics/YOLOv8/resolve/main/yolov8n.onnx",
-]
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
@@ -64,66 +57,6 @@ app.add_middleware(
 )
 
 
-def download_model_if_missing():
-    """Download YOLO model if it doesn't exist or is corrupted."""
-    model_path = Path(settings.model_path)
-    min_size_mb = 5.0  # YOLOv8n.onnx should be ~6.3 MB
-
-    # Check if file exists and is valid size
-    if model_path.exists():
-        size_mb = model_path.stat().st_size / 1024 / 1024
-        if size_mb >= min_size_mb:
-            logger.info(f"Model already exists: {model_path} ({size_mb:.1f} MB)")
-            return True
-        else:
-            logger.warning(f"Model file too small ({size_mb:.2f} MB), likely corrupted. Re-downloading...")
-            model_path.unlink()  # Delete corrupted file
-
-    # Try each mirror until one works
-    for url in MODEL_URLS:
-        logger.info(f"Attempting to download model from {url}...")
-        try:
-            response = requests.get(
-                url,
-                stream=True,
-                timeout=120,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (compatible; InventoryTracker/1.0)",
-                    "Accept": "application/octet-stream",
-                }
-            )
-            response.raise_for_status()
-
-            # Download with progress
-            total_size = int(response.headers.get('content-length', 0))
-            logger.info(f"Downloading {total_size / 1024 / 1024:.1f} MB...")
-
-            with open(model_path, 'wb') as f:
-                downloaded = 0
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-
-            size_mb = model_path.stat().st_size / 1024 / 1024
-            if size_mb < min_size_mb:
-                logger.error(f"Downloaded file too small: {size_mb:.2f} MB")
-                model_path.unlink()
-                continue  # Try next mirror
-
-            logger.info(f"Model downloaded successfully: {size_mb:.1f} MB")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to download from {url}: {e}")
-            if model_path.exists():
-                model_path.unlink()
-            continue  # Try next mirror
-
-    logger.error("All download mirrors failed")
-    return False
-
-
 @app.on_event("startup")
 async def startup_event():
     global detector_error
@@ -132,12 +65,22 @@ async def startup_event():
     logger.info(f"Working directory: {os.getcwd()}")
     logger.info(f"Files in cwd: {os.listdir('.')}")
 
-    # Download model if missing
-    if not download_model_if_missing():
-        detector_error = "Failed to download YOLO model"
+    # Check if model exists (should be baked into Docker image)
+    model_path = Path(settings.model_path)
+    if not model_path.exists():
+        detector_error = f"Model file not found at {model_path}. Docker build may have failed."
+        logger.error(detector_error)
         return
 
-    # Try importing detector dependencies to catch errors early
+    size_mb = model_path.stat().st_size / 1024 / 1024
+    logger.info(f"Model file found: {size_mb:.1f} MB")
+
+    if size_mb < 5.0:
+        detector_error = f"Model file too small ({size_mb:.2f} MB). Docker build may have failed."
+        logger.error(detector_error)
+        return
+
+    # Check dependencies
     errors = []
     for mod_name in ["numpy", "cv2", "onnxruntime", "PIL"]:
         try:
@@ -147,15 +90,16 @@ async def startup_event():
             logger.error(f"  {mod_name}: FAILED - {e}")
             errors.append(f"{mod_name}: {e}")
 
-    if not errors:
-        # Eagerly load the model so errors show up in logs
-        det = get_detector()
-        if det and det.is_loaded:
-            logger.info("Model loaded successfully at startup")
-        else:
-            logger.warning(f"Model failed to load: {detector_error}")
-    else:
+    if errors:
         detector_error = f"Missing dependencies: {', '.join(errors)}"
+        return
+
+    # Load the model
+    det = get_detector()
+    if det and det.is_loaded:
+        logger.info("Model loaded successfully at startup")
+    else:
+        logger.warning(f"Model failed to load: {detector_error}")
 
 
 @app.get("/")
@@ -165,8 +109,9 @@ async def root():
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
+    model_path = Path(settings.model_path)
     return HealthResponse(
-        status="healthy" if detector_error is None else "error",
+        status="healthy" if detector_error is None and detector is not None else "error",
         model_loaded=detector is not None and detector.is_loaded,
         model_name=settings.model_path,
         version="1.0.0",
@@ -176,56 +121,18 @@ async def health_check() -> HealthResponse:
 @app.get("/debug")
 async def debug_info():
     """Debug endpoint to diagnose issues."""
-    import os
     model_path = Path(settings.model_path)
-    info = {
+    return {
         "model_path": settings.model_path,
         "model_file_exists": model_path.exists(),
         "model_file_size_mb": round(model_path.stat().st_size / 1024 / 1024, 2) if model_path.exists() else 0,
         "detector_loaded": detector is not None,
+        "detector_is_loaded": detector.is_loaded if detector else False,
         "detector_error": detector_error,
         "working_directory": os.getcwd(),
         "files_in_cwd": os.listdir("."),
         "python_version": sys.version,
     }
-    # Check each dependency
-    deps = {}
-    for mod_name in ["numpy", "cv2", "onnxruntime", "PIL", "pillow_heif"]:
-        try:
-            mod = __import__(mod_name)
-            deps[mod_name] = getattr(mod, "__version__", "installed")
-        except ImportError as e:
-            deps[mod_name] = f"MISSING: {e}"
-    info["dependencies"] = deps
-    return info
-
-
-@app.post("/reload-model")
-async def reload_model():
-    """Force re-download and reload the model."""
-    global detector, detector_error
-
-    # Delete existing model if present
-    model_path = Path(settings.model_path)
-    if model_path.exists():
-        model_path.unlink()
-        logger.info("Deleted existing model file")
-
-    # Reset detector state
-    detector = None
-    detector_error = None
-
-    # Download fresh model
-    if not download_model_if_missing():
-        detector_error = "Failed to download model"
-        return {"success": False, "error": detector_error}
-
-    # Try to load the detector
-    det = get_detector()
-    if det and det.is_loaded:
-        return {"success": True, "message": "Model reloaded successfully"}
-    else:
-        return {"success": False, "error": detector_error}
 
 
 @app.post("/detect", response_model=DetectionResponse)
