@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    model_path: str = "yolov8n.onnx"
+    model_path: str = "yolov10n.onnx"
     confidence_threshold: float = 0.25
     iou_threshold: float = 0.45
     max_image_size: int = 1280

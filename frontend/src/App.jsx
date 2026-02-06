@@ -2587,7 +2587,7 @@ function DetectView({ onAddToInventory }) {
           </svg>
         </div>
         <h2>AI Detection</h2>
-        <p className="detect-subtitle">YOLOv26 Object Detection</p>
+        <p className="detect-subtitle">YOLOv10 Object Detection</p>
         <div className="detect-status">Service Starting...</div>
         <p className="detect-description">
           The detection service is initializing. This may take a moment on first load.
