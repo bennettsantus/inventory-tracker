@@ -2,10 +2,10 @@ import logging
 import os
 import sys
 import traceback
-import urllib.request
 from pathlib import Path
 from typing import Annotated
 
+import requests
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -14,7 +14,11 @@ from models import DetectionResponse, HealthResponse
 
 settings = get_settings()
 
-MODEL_URL = "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.onnx"
+# Multiple mirrors for model download
+MODEL_URLS = [
+    "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.onnx",
+    "https://huggingface.co/Ultralytics/YOLOv8/resolve/main/yolov8n.onnx",
+]
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
@@ -75,19 +79,49 @@ def download_model_if_missing():
             logger.warning(f"Model file too small ({size_mb:.2f} MB), likely corrupted. Re-downloading...")
             model_path.unlink()  # Delete corrupted file
 
-    logger.info(f"Downloading model from {MODEL_URL}...")
-    try:
-        urllib.request.urlretrieve(MODEL_URL, str(model_path))
-        size_mb = model_path.stat().st_size / 1024 / 1024
-        if size_mb < min_size_mb:
-            logger.error(f"Downloaded file too small: {size_mb:.2f} MB")
-            model_path.unlink()
-            return False
-        logger.info(f"Model downloaded successfully: {size_mb:.1f} MB")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to download model: {e}")
-        return False
+    # Try each mirror until one works
+    for url in MODEL_URLS:
+        logger.info(f"Attempting to download model from {url}...")
+        try:
+            response = requests.get(
+                url,
+                stream=True,
+                timeout=120,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; InventoryTracker/1.0)",
+                    "Accept": "application/octet-stream",
+                }
+            )
+            response.raise_for_status()
+
+            # Download with progress
+            total_size = int(response.headers.get('content-length', 0))
+            logger.info(f"Downloading {total_size / 1024 / 1024:.1f} MB...")
+
+            with open(model_path, 'wb') as f:
+                downloaded = 0
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+
+            size_mb = model_path.stat().st_size / 1024 / 1024
+            if size_mb < min_size_mb:
+                logger.error(f"Downloaded file too small: {size_mb:.2f} MB")
+                model_path.unlink()
+                continue  # Try next mirror
+
+            logger.info(f"Model downloaded successfully: {size_mb:.1f} MB")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to download from {url}: {e}")
+            if model_path.exists():
+                model_path.unlink()
+            continue  # Try next mirror
+
+    logger.error("All download mirrors failed")
+    return False
 
 
 @app.on_event("startup")
