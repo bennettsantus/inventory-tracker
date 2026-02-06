@@ -1,4 +1,10 @@
-const DETECTION_API_URL = import.meta.env.VITE_DETECTION_API_URL || '';
+// Detection API URL - check env var, then try common deployment URLs
+const DETECTION_API_URL = import.meta.env.VITE_DETECTION_API_URL ||
+  (window.location.hostname.includes('onrender.com')
+    ? 'https://inventory-detection-service.onrender.com'
+    : '');
+
+console.log('🔍 Detection API URL:', DETECTION_API_URL || 'NOT CONFIGURED');
 
 export class DetectionError extends Error {
   constructor(message, status) {
@@ -11,8 +17,16 @@ export class DetectionError extends Error {
 export async function detectObjects(imageFile, options = {}) {
   const { confidence = 0.25, filterInventory = true } = options;
 
+  console.log('🔵 detectObjects called with:', {
+    fileName: imageFile?.name,
+    fileSize: imageFile?.size,
+    fileType: imageFile?.type,
+    apiUrl: DETECTION_API_URL
+  });
+
   if (!DETECTION_API_URL) {
-    throw new DetectionError('Detection service not configured. Check VITE_DETECTION_API_URL.', 503);
+    console.error('❌ Detection API URL not configured');
+    throw new DetectionError('Detection service not configured. Set VITE_DETECTION_API_URL environment variable.', 503);
   }
 
   const formData = new FormData();

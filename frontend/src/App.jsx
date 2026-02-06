@@ -2456,20 +2456,41 @@ function DetectView({ onAddToInventory }) {
   };
 
   const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    console.log('📸 Capture button clicked!');
+    console.log('  videoRef:', !!videoRef.current);
+    console.log('  canvasRef:', !!canvasRef.current);
+
+    if (!videoRef.current || !canvasRef.current) {
+      console.error('❌ Missing refs - videoRef:', !!videoRef.current, 'canvasRef:', !!canvasRef.current);
+      setError('Camera not ready. Please wait and try again.');
+      return;
+    }
 
     const video = videoRef.current;
+    console.log('  video dimensions:', video.videoWidth, 'x', video.videoHeight);
+
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.error('❌ Video not ready - dimensions are 0');
+      setError('Camera still loading. Please wait a moment.');
+      return;
+    }
+
     const canvas = canvasRef.current;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
+    console.log('✅ Frame captured to canvas');
 
     canvas.toBlob(blob => {
       if (blob) {
+        console.log('✅ Blob created:', blob.size, 'bytes');
         setCapturedImage(URL.createObjectURL(blob));
         runDetection(blobToFile(blob, 'capture.jpg'));
+      } else {
+        console.error('❌ Failed to create blob from canvas');
+        setError('Failed to capture image. Please try again.');
       }
     }, 'image/jpeg', 0.9);
   };
