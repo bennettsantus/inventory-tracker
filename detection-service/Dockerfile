@@ -6,22 +6,32 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgomp1 \
-    curl \
+    wget \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download YOLOv8n model DURING BUILD (not at runtime)
-# This ensures the model is baked into the Docker image
-RUN curl -L -o yolov8n.onnx https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.onnx \
-    && ls -lh yolov8n.onnx \
-    && echo "Model size: $(stat -c%s yolov8n.onnx 2>/dev/null || stat -f%z yolov8n.onnx) bytes"
+# Download YOLOv8n model DURING BUILD
+# Using wget with explicit redirect following
+RUN wget --no-check-certificate -O yolov8n.onnx \
+    "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.onnx" \
+    && ls -lh yolov8n.onnx
 
-# Verify model was downloaded correctly (should be ~6MB)
-RUN test $(stat -c%s yolov8n.onnx 2>/dev/null || stat -f%z yolov8n.onnx) -gt 5000000 \
-    || (echo "ERROR: Model file too small, download failed" && exit 1)
+# If GitHub fails, try HuggingFace mirror
+RUN if [ $(stat -c%s yolov8n.onnx) -lt 5000000 ]; then \
+        echo "GitHub download failed, trying HuggingFace..." && \
+        wget --no-check-certificate -O yolov8n.onnx \
+        "https://huggingface.co/Ultralytics/YOLOv8/resolve/main/yolov8n.onnx" && \
+        ls -lh yolov8n.onnx; \
+    fi
+
+# Final verification
+RUN ls -lh yolov8n.onnx && \
+    test $(stat -c%s yolov8n.onnx) -gt 5000000 || \
+    (echo "ERROR: Model download failed from all sources" && exit 1)
 
 # Copy application code
 COPY . .
