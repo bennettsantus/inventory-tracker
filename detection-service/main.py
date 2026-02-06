@@ -61,16 +61,28 @@ app.add_middleware(
 
 
 def download_model_if_missing():
-    """Download YOLO model if it doesn't exist."""
+    """Download YOLO model if it doesn't exist or is corrupted."""
     model_path = Path(settings.model_path)
-    if model_path.exists():
-        logger.info(f"Model already exists: {model_path} ({model_path.stat().st_size / 1024 / 1024:.1f} MB)")
-        return True
+    min_size_mb = 5.0  # YOLOv8n.onnx should be ~6.3 MB
 
-    logger.info(f"Model not found at {model_path}, downloading from {MODEL_URL}...")
+    # Check if file exists and is valid size
+    if model_path.exists():
+        size_mb = model_path.stat().st_size / 1024 / 1024
+        if size_mb >= min_size_mb:
+            logger.info(f"Model already exists: {model_path} ({size_mb:.1f} MB)")
+            return True
+        else:
+            logger.warning(f"Model file too small ({size_mb:.2f} MB), likely corrupted. Re-downloading...")
+            model_path.unlink()  # Delete corrupted file
+
+    logger.info(f"Downloading model from {MODEL_URL}...")
     try:
         urllib.request.urlretrieve(MODEL_URL, str(model_path))
         size_mb = model_path.stat().st_size / 1024 / 1024
+        if size_mb < min_size_mb:
+            logger.error(f"Downloaded file too small: {size_mb:.2f} MB")
+            model_path.unlink()
+            return False
         logger.info(f"Model downloaded successfully: {size_mb:.1f} MB")
         return True
     except Exception as e:
@@ -131,9 +143,11 @@ async def health_check() -> HealthResponse:
 async def debug_info():
     """Debug endpoint to diagnose issues."""
     import os
+    model_path = Path(settings.model_path)
     info = {
         "model_path": settings.model_path,
-        "model_file_exists": os.path.exists(settings.model_path),
+        "model_file_exists": model_path.exists(),
+        "model_file_size_mb": round(model_path.stat().st_size / 1024 / 1024, 2) if model_path.exists() else 0,
         "detector_loaded": detector is not None,
         "detector_error": detector_error,
         "working_directory": os.getcwd(),
@@ -150,6 +164,34 @@ async def debug_info():
             deps[mod_name] = f"MISSING: {e}"
     info["dependencies"] = deps
     return info
+
+
+@app.post("/reload-model")
+async def reload_model():
+    """Force re-download and reload the model."""
+    global detector, detector_error
+
+    # Delete existing model if present
+    model_path = Path(settings.model_path)
+    if model_path.exists():
+        model_path.unlink()
+        logger.info("Deleted existing model file")
+
+    # Reset detector state
+    detector = None
+    detector_error = None
+
+    # Download fresh model
+    if not download_model_if_missing():
+        detector_error = "Failed to download model"
+        return {"success": False, "error": detector_error}
+
+    # Try to load the detector
+    det = get_detector()
+    if det and det.is_loaded:
+        return {"success": True, "message": "Model reloaded successfully"}
+    else:
+        return {"success": False, "error": detector_error}
 
 
 @app.post("/detect", response_model=DetectionResponse)
