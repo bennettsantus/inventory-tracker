@@ -25,7 +25,6 @@ RUN pip install --no-cache-dir ultralytics
 
 # Download YOLOv8n.pt and export to ONNX during build
 RUN python -c "from ultralytics import YOLO; model = YOLO('yolov8n.pt'); model.export(format='onnx')" \
-    && mv yolov8n.onnx /app/yolov8n.onnx \
     && ls -lh /app/yolov8n.onnx
 
 # Verify model file size (should be ~6MB)
