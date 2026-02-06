@@ -1,8 +1,6 @@
-// Detection API URL - check env var, then try common deployment URLs
+// Detection API URL - check env var, then use Render detection service
 const DETECTION_API_URL = import.meta.env.VITE_DETECTION_API_URL ||
-  (window.location.hostname.includes('onrender.com')
-    ? 'https://inventory-detection-service.onrender.com'
-    : '');
+  'https://detection-service1.onrender.com';
 
 console.log('🔍 Detection API URL:', DETECTION_API_URL || 'NOT CONFIGURED');
 

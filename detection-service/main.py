@@ -1,6 +1,9 @@
 import logging
+import os
 import sys
 import traceback
+import urllib.request
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
@@ -10,6 +13,8 @@ from config import get_settings
 from models import DetectionResponse, HealthResponse
 
 settings = get_settings()
+
+MODEL_URL = "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.onnx"
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
@@ -55,10 +60,37 @@ app.add_middleware(
 )
 
 
+def download_model_if_missing():
+    """Download YOLO model if it doesn't exist."""
+    model_path = Path(settings.model_path)
+    if model_path.exists():
+        logger.info(f"Model already exists: {model_path} ({model_path.stat().st_size / 1024 / 1024:.1f} MB)")
+        return True
+
+    logger.info(f"Model not found at {model_path}, downloading from {MODEL_URL}...")
+    try:
+        urllib.request.urlretrieve(MODEL_URL, str(model_path))
+        size_mb = model_path.stat().st_size / 1024 / 1024
+        logger.info(f"Model downloaded successfully: {size_mb:.1f} MB")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to download model: {e}")
+        return False
+
+
 @app.on_event("startup")
 async def startup_event():
+    global detector_error
     logger.info("Starting detection service...")
     logger.info(f"Model path: {settings.model_path}")
+    logger.info(f"Working directory: {os.getcwd()}")
+    logger.info(f"Files in cwd: {os.listdir('.')}")
+
+    # Download model if missing
+    if not download_model_if_missing():
+        detector_error = "Failed to download YOLO model"
+        return
+
     # Try importing detector dependencies to catch errors early
     errors = []
     for mod_name in ["numpy", "cv2", "onnxruntime", "PIL"]:
@@ -77,7 +109,6 @@ async def startup_event():
         else:
             logger.warning(f"Model failed to load: {detector_error}")
     else:
-        global detector_error
         detector_error = f"Missing dependencies: {', '.join(errors)}"
 
 
