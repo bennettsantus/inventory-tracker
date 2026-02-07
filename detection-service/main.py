@@ -2,7 +2,6 @@ import logging
 import os
 import sys
 import traceback
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
@@ -31,8 +30,8 @@ def get_detector():
     if detector_error is not None:
         return None
     try:
-        from detector import YOLODetector
-        detector = YOLODetector(settings)
+        from detector import VisionDetector
+        detector = VisionDetector(settings)
         logger.info("Detector initialized successfully")
         return detector
     except Exception as e:
@@ -44,8 +43,8 @@ def get_detector():
 
 app = FastAPI(
     title="Inventory Detection API",
-    description="YOLO-powered object detection for restaurant inventory",
-    version="1.0.0",
+    description="Claude Vision-powered product detection for restaurant inventory",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -61,45 +60,17 @@ app.add_middleware(
 async def startup_event():
     global detector_error
     logger.info("Starting detection service...")
-    logger.info(f"Model path: {settings.model_path}")
-    logger.info(f"Working directory: {os.getcwd()}")
-    logger.info(f"Files in cwd: {os.listdir('.')}")
 
-    # Check if model exists (should be baked into Docker image)
-    model_path = Path(settings.model_path)
-    if not model_path.exists():
-        detector_error = f"Model file not found at {model_path}. Docker build may have failed."
+    if not settings.anthropic_api_key:
+        detector_error = "ANTHROPIC_API_KEY environment variable is not set"
         logger.error(detector_error)
         return
 
-    size_mb = model_path.stat().st_size / 1024 / 1024
-    logger.info(f"Model file found: {size_mb:.1f} MB")
-
-    if size_mb < 5.0:
-        detector_error = f"Model file too small ({size_mb:.2f} MB). Docker build may have failed."
-        logger.error(detector_error)
-        return
-
-    # Check dependencies
-    errors = []
-    for mod_name in ["numpy", "cv2", "onnxruntime", "PIL"]:
-        try:
-            __import__(mod_name)
-            logger.info(f"  {mod_name}: OK")
-        except ImportError as e:
-            logger.error(f"  {mod_name}: FAILED - {e}")
-            errors.append(f"{mod_name}: {e}")
-
-    if errors:
-        detector_error = f"Missing dependencies: {', '.join(errors)}"
-        return
-
-    # Load the model
     det = get_detector()
     if det and det.is_loaded:
-        logger.info("Model loaded successfully at startup")
+        logger.info("Vision detector initialized successfully")
     else:
-        logger.warning(f"Model failed to load: {detector_error}")
+        logger.warning(f"Detector failed to initialize: {detector_error}")
 
 
 @app.get("/")
@@ -109,28 +80,25 @@ async def root():
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
-    model_path = Path(settings.model_path)
     return HealthResponse(
         status="healthy" if detector_error is None and detector is not None else "error",
         model_loaded=detector is not None and detector.is_loaded,
-        model_name=settings.model_path,
-        version="1.0.0",
+        model_name=settings.anthropic_model,
+        version="2.0.0",
     )
 
 
 @app.get("/debug")
 async def debug_info():
     """Debug endpoint to diagnose issues."""
-    model_path = Path(settings.model_path)
     return {
-        "model_path": settings.model_path,
-        "model_file_exists": model_path.exists(),
-        "model_file_size_mb": round(model_path.stat().st_size / 1024 / 1024, 2) if model_path.exists() else 0,
+        "backend": "claude-vision",
+        "anthropic_model": settings.anthropic_model,
+        "api_key_set": bool(settings.anthropic_api_key),
         "detector_loaded": detector is not None,
         "detector_is_loaded": detector.is_loaded if detector else False,
         "detector_error": detector_error,
         "working_directory": os.getcwd(),
-        "files_in_cwd": os.listdir("."),
         "python_version": sys.version,
     }
 
@@ -186,11 +154,12 @@ async def detect_objects(
 
 @app.get("/classes")
 async def get_supported_classes() -> dict:
-    try:
-        from detector import COCO_CLASSES, INVENTORY_RELEVANT
-        return {
-            "all_classes": COCO_CLASSES,
-            "inventory_relevant": {k: COCO_CLASSES[k] for k in sorted(INVENTORY_RELEVANT)},
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load detector module: {e}")
+    return {
+        "backend": "claude-vision",
+        "note": "Claude Vision identifies products by brand, size, and type. No fixed class list.",
+        "examples": [
+            "Coca-Cola 12oz can",
+            "Heinz Ketchup 20oz bottle",
+            "Budweiser 12-pack",
+        ],
+    }

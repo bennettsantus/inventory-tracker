@@ -10,10 +10,11 @@ class BoundingBox(BaseModel):
 
 
 class DetectedObject(BaseModel):
-    class_name: str = Field(description="COCO class name")
-    class_id: int = Field(description="COCO class ID")
+    class_name: str = Field(description="Detected item name")
+    class_id: int = Field(default=0, description="Class ID (legacy, always 0 for vision API)")
     confidence: float = Field(ge=0, le=1, description="Detection confidence")
-    bbox: BoundingBox = Field(description="Bounding box coordinates")
+    bbox: Optional[BoundingBox] = Field(default=None, description="Bounding box coordinates (null for vision API)")
+    description: Optional[str] = Field(default=None, description="Additional product details")
 
 
 class DetectionSummary(BaseModel):

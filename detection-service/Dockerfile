@@ -2,36 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies including X11 libs needed by OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 \
-    libgomp1 \
-    libxcb1 \
-    libx11-6 \
-    libxext6 \
-    libxrender1 \
-    libgl1 \
-    libsm6 \
-    wget \
-    ca-certificates \
+    libheif-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python dependencies first
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install ultralytics to export model to ONNX
-RUN pip install --no-cache-dir ultralytics
-
-# Download YOLOv10n.pt and export to ONNX during build (opset 12 for compatibility)
-RUN python -c "from ultralytics import YOLO; model = YOLO('yolov10n.pt'); model.export(format='onnx', opset=12)" \
-    && ls -lh /app/yolov10n.onnx
-
-# Verify model file size (should be ~5MB+)
-RUN test $(stat -c%s /app/yolov10n.onnx) -gt 5000000 || \
-    (echo "ERROR: Model export failed" && exit 1)
-
-# Copy application code
 COPY . .
 
 ENV PORT=8000

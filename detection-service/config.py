@@ -3,9 +3,11 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    model_path: str = "yolov10n.onnx"
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-4-5-20250929"
+    anthropic_max_tokens: int = 1024
+
     confidence_threshold: float = 0.25
-    iou_threshold: float = 0.45
     max_image_size: int = 1280
     max_upload_mb: int = 10
     log_level: str = "INFO"

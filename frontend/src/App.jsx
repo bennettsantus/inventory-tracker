@@ -2403,6 +2403,8 @@ function DetectView({ onAddToInventory }) {
       detections.forEach(det => {
         const { bbox, class_name, confidence } = det;
 
+        if (!bbox) return;
+
         ctx.strokeStyle = '#22c55e';
         ctx.lineWidth = 3;
         ctx.strokeRect(bbox.x1, bbox.y1, bbox.x2 - bbox.x1, bbox.y2 - bbox.y1);
