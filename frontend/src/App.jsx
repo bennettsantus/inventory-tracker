@@ -2271,16 +2271,10 @@ function DetectView({ onAddToInventory }) {
   const [error, setError] = useState(null);
   const [serviceStatus, setServiceStatus] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
-  const [liveMode, setLiveMode] = useState(false);
-  const [liveDetections, setLiveDetections] = useState([]);
-  const [fps, setFps] = useState(0);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const overlayCanvasRef = useRef(null);
   const streamRef = useRef(null);
   const fileInputRef = useRef(null);
-  const liveIntervalRef = useRef(null);
-  const isDetectingRef = useRef(false);
 
   useEffect(() => {
     checkHealth().then(setServiceStatus);
@@ -2290,28 +2284,8 @@ function DetectView({ onAddToInventory }) {
     if (mode === 'camera') {
       startCamera();
     }
-    return () => {
-      stopCamera();
-      stopLiveDetection();
-    };
+    return () => stopCamera();
   }, [mode]);
-
-  // Live detection loop
-  useEffect(() => {
-    if (liveMode && mode === 'camera' && !capturedImage) {
-      startLiveDetection();
-    } else {
-      stopLiveDetection();
-    }
-    return () => stopLiveDetection();
-  }, [liveMode, mode, capturedImage]);
-
-  // Draw overlay for live detections
-  useEffect(() => {
-    if (liveMode && liveDetections.length >= 0) {
-      drawLiveOverlay();
-    }
-  }, [liveDetections, liveMode]);
 
   const startCamera = async () => {
     try {
@@ -2333,126 +2307,6 @@ function DetectView({ onAddToInventory }) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    stopLiveDetection();
-  };
-
-  const startLiveDetection = () => {
-    if (liveIntervalRef.current) return;
-
-    let lastTime = performance.now();
-    let frameCount = 0;
-
-    const runFrame = async () => {
-      if (!liveMode || !videoRef.current || isDetectingRef.current) {
-        liveIntervalRef.current = setTimeout(runFrame, 100);
-        return;
-      }
-
-      isDetectingRef.current = true;
-
-      try {
-        const video = videoRef.current;
-        if (video.videoWidth === 0 || video.videoHeight === 0) {
-          isDetectingRef.current = false;
-          liveIntervalRef.current = setTimeout(runFrame, 100);
-          return;
-        }
-
-        // Create a temporary canvas to capture frame
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = video.videoWidth;
-        tempCanvas.height = video.videoHeight;
-        const ctx = tempCanvas.getContext('2d');
-        ctx.drawImage(video, 0, 0);
-
-        // Convert to blob and detect
-        const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/jpeg', 0.8));
-        if (blob) {
-          const file = blobToFile(blob, 'frame.jpg');
-          const result = await detectObjects(file, { confidence: 0.3, filterInventory: true });
-
-          if (result.detections) {
-            setLiveDetections(result.detections);
-          }
-
-          // Calculate FPS
-          frameCount++;
-          const now = performance.now();
-          if (now - lastTime >= 1000) {
-            setFps(frameCount);
-            frameCount = 0;
-            lastTime = now;
-          }
-        }
-      } catch (err) {
-        console.error('Live detection error:', err);
-      }
-
-      isDetectingRef.current = false;
-
-      // Run next frame (throttled to avoid overwhelming the server)
-      if (liveMode) {
-        liveIntervalRef.current = setTimeout(runFrame, 200); // ~5 fps max
-      }
-    };
-
-    runFrame();
-  };
-
-  const stopLiveDetection = () => {
-    if (liveIntervalRef.current) {
-      clearTimeout(liveIntervalRef.current);
-      liveIntervalRef.current = null;
-    }
-    isDetectingRef.current = false;
-    setLiveDetections([]);
-    setFps(0);
-  };
-
-  const drawLiveOverlay = () => {
-    const video = videoRef.current;
-    const overlay = overlayCanvasRef.current;
-    if (!video || !overlay) return;
-
-    const rect = video.getBoundingClientRect();
-    overlay.width = rect.width;
-    overlay.height = rect.height;
-
-    const ctx = overlay.getContext('2d');
-    ctx.clearRect(0, 0, overlay.width, overlay.height);
-
-    if (liveDetections.length === 0) return;
-
-    // Scale factors from video resolution to display size
-    const scaleX = rect.width / video.videoWidth;
-    const scaleY = rect.height / video.videoHeight;
-
-    liveDetections.forEach(det => {
-      const { bbox, class_name, confidence } = det;
-
-      // Scale bbox to display size
-      const x1 = bbox.x1 * scaleX;
-      const y1 = bbox.y1 * scaleY;
-      const x2 = bbox.x2 * scaleX;
-      const y2 = bbox.y2 * scaleY;
-
-      // Draw bounding box
-      ctx.strokeStyle = '#22c55e';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-
-      // Draw label background
-      const label = `${class_name} ${(confidence * 100).toFixed(0)}%`;
-      ctx.font = 'bold 14px system-ui';
-      const textWidth = ctx.measureText(label).width;
-
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.9)';
-      ctx.fillRect(x1, y1 - 22, textWidth + 8, 22);
-
-      // Draw label text
-      ctx.fillStyle = '#fff';
-      ctx.fillText(label, x1 + 4, y1 - 6);
-    });
   };
 
   const capturePhoto = () => {
@@ -2612,39 +2466,9 @@ function DetectView({ onAddToInventory }) {
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      <div className="detect-camera-container" style={{ position: 'relative' }}>
+      <div className="detect-camera-container">
         {mode === 'camera' && !capturedImage && (
-          <>
-            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', display: 'block' }} />
-            {liveMode && (
-              <canvas
-                ref={overlayCanvasRef}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  pointerEvents: 'none'
-                }}
-              />
-            )}
-            {liveMode && (
-              <div style={{
-                position: 'absolute',
-                top: 8,
-                left: 8,
-                background: 'rgba(0,0,0,0.7)',
-                color: '#22c55e',
-                padding: '4px 8px',
-                borderRadius: 4,
-                fontSize: 12,
-                fontWeight: 'bold'
-              }}>
-                LIVE {fps > 0 && `• ${fps} fps`} • {liveDetections.length} objects
-              </div>
-            )}
-          </>
+          <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', display: 'block' }} />
         )}
 
         {capturedImage && capturedImage !== 'heic-placeholder' && (
@@ -2684,35 +2508,13 @@ function DetectView({ onAddToInventory }) {
 
       <div className="detect-controls">
         {mode === 'camera' && !capturedImage && (
-          <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                className={`btn ${liveMode ? 'btn-secondary' : 'btn-primary'} btn-lg`}
-                onClick={capturePhoto}
-                disabled={liveMode}
-                style={{ flex: 1 }}
-              >
-                Capture & Detect
-              </button>
-              <button
-                className={`btn ${liveMode ? 'btn-primary' : 'btn-secondary'} btn-lg`}
-                onClick={() => setLiveMode(!liveMode)}
-                style={{ flex: 1 }}
-              >
-                {liveMode ? 'Stop Live' : 'Live Detect'}
-              </button>
-            </div>
-            {liveMode && liveDetections.length > 0 && (
-              <div style={{
-                background: 'var(--card-bg, #f3f4f6)',
-                padding: '0.75rem',
-                borderRadius: 8,
-                fontSize: 14
-              }}>
-                <strong>Detected:</strong> {[...new Set(liveDetections.map(d => d.class_name))].join(', ')}
-              </div>
-            )}
-          </div>
+          <button
+            className="btn btn-primary btn-lg"
+            onClick={capturePhoto}
+            style={{ width: '100%' }}
+          >
+            Capture & Detect
+          </button>
         )}
 
         {capturedImage && (
