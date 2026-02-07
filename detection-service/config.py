@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     confidence_threshold: float = 0.25
     max_image_size: int = 1280
-    max_upload_mb: int = 10
+    max_upload_mb: int = 50
     log_level: str = "INFO"
     allowed_origins: str = "*"
 

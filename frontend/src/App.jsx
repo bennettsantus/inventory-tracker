@@ -1,3 +1,27 @@
+/**
+ * App.jsx - Inventory Tracker Application
+ *
+ * Main application component for Mike's restaurant inventory system.
+ * Combines barcode scanning, AI-powered image detection (Claude Vision),
+ * inventory management, usage analytics, and waste tracking.
+ *
+ * Components defined in this file:
+ *   ErrorBoundary - Catches React rendering errors
+ *   BarcodeScanner - QR/barcode scanning via camera
+ *   InventoryList - Main inventory grid with stock status
+ *   DetectView - Camera capture + Claude Vision detection
+ *   AuthScreen - Login/signup forms
+ *   SettingsMenu - App settings dropdown
+ */
+
+/* === Constants === */
+const DETECTION_CONFIDENCE = 0.3;
+const IMAGE_QUALITY = 0.9;
+const QR_SCANNER_FPS = 10;
+const DEFAULT_ANALYTICS_DAYS = 30;
+const MS_PER_DAY = 86400000;
+const MIN_PASSWORD_LENGTH = 6;
+
 import { useState, useEffect, useRef, useCallback, Component } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { detectObjects, checkHealth, blobToFile } from './detectionService';
@@ -14,7 +38,6 @@ class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('App Error:', error, errorInfo);
   }
 
   render() {
@@ -83,7 +106,6 @@ async function lookupBarcode(barcode) {
     }
     return null;
   } catch (err) {
-    console.error('Barcode lookup failed:', err);
     return null;
   }
 }
@@ -234,7 +256,6 @@ function ScannerView({ onScan, onStop }) {
       });
       setFlashOn(newFlashState);
     } catch (err) {
-      console.error('Flash toggle failed:', err);
     }
   };
 
@@ -253,14 +274,14 @@ function ScannerView({ onScan, onStop }) {
 
         await scanner.start(
           { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 250, height: 150 } },
+          { fps: QR_SCANNER_FPS, qrbox: { width: 250, height: 150 } },
           (text) => {
             if (!stopped && !scannedCode) {
               scannedCode = text;
               stopped = true;
               // Stop scanner first, then notify parent
               scanner.stop()
-                .catch(() => {})
+                .catch(() => { /* Scanner already stopping, safe to ignore */ })
                 .finally(() => {
                   setTimeout(() => onScan(scannedCode), 100);
                 });
@@ -280,7 +301,6 @@ function ScannerView({ onScan, onStop }) {
           // Torch not supported
         }
       } catch (err) {
-        console.error('Camera start failed:', err);
         if (!stopped) {
           onStop(err.message || 'Camera error');
         }
@@ -294,8 +314,8 @@ function ScannerView({ onScan, onStop }) {
       scannerRef.current = null;
       if (scanner) {
         try {
-          scanner.stop().catch(() => {});
-        } catch (e) {}
+          scanner.stop().catch(() => { /* Cleanup on unmount, safe to ignore */ });
+        } catch { /* Scanner may already be stopped */ }
       }
     };
   }, [onScan, onStop]);
@@ -316,6 +336,7 @@ function ScannerView({ onScan, onStop }) {
   );
 }
 
+// === BarcodeScanner Component ===
 function BarcodeScanner({ onScan, onError }) {
   const [isScanning, setIsScanning] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -338,7 +359,6 @@ function BarcodeScanner({ onScan, onError }) {
       try {
         onScan(text);
       } catch (err) {
-        console.error('Scan handler error:', err);
       }
     }, 50);
   }, [onScan]);
@@ -875,7 +895,6 @@ function UsageAnalytics({ item, onClose }) {
         const data = await api.getItemUsage(item.id, days);
         setUsageData(data);
       } catch (err) {
-        console.error('Failed to fetch usage:', err);
       } finally {
         setLoading(false);
       }
@@ -1134,7 +1153,6 @@ function WasteReport({ onItemClick }) {
         setAnalytics(analyticsData);
         setWasteRecords(records);
       } catch (err) {
-        console.error('Failed to fetch waste data:', err);
       } finally {
         setLoading(false);
       }
@@ -2074,7 +2092,7 @@ function RestockList({ items, onUpdateQuantity, onRemove, onClear, onItemClick, 
   );
 }
 
-// Auth Screen Component
+// === AuthScreen Component ===
 function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState('login'); // 'login' or 'signup'
   const [email, setEmail] = useState('');
@@ -2263,7 +2281,7 @@ function SettingsMenu({ darkMode, onToggleDarkMode, userName, onLogout }) {
   );
 }
 
-// Detection View Component
+// === DetectView Component ===
 function DetectView({ onAddToInventory }) {
   const [mode, setMode] = useState('camera');
   const [isDetecting, setIsDetecting] = useState(false);
@@ -2271,6 +2289,7 @@ function DetectView({ onAddToInventory }) {
   const [error, setError] = useState(null);
   const [serviceStatus, setServiceStatus] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
+  const [isHeicUpload, setIsHeicUpload] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -2310,20 +2329,14 @@ function DetectView({ onAddToInventory }) {
   };
 
   const capturePhoto = () => {
-    console.log('📸 Capture button clicked!');
-    console.log('  videoRef:', !!videoRef.current);
-
     if (!videoRef.current) {
-      console.error('❌ Video ref not available');
       setError('Camera not ready. Please wait and try again.');
       return;
     }
 
     const video = videoRef.current;
-    console.log('  video dimensions:', video.videoWidth, 'x', video.videoHeight);
 
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.error('❌ Video not ready - dimensions are 0');
       setError('Camera still loading. Please wait a moment.');
       return;
     }
@@ -2335,18 +2348,15 @@ function DetectView({ onAddToInventory }) {
 
     const ctx = tempCanvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
-    console.log('✅ Frame captured to canvas');
 
     tempCanvas.toBlob(blob => {
       if (blob) {
-        console.log('✅ Blob created:', blob.size, 'bytes');
         setCapturedImage(URL.createObjectURL(blob));
         runDetection(blobToFile(blob, 'capture.jpg'));
       } else {
-        console.error('❌ Failed to create blob from canvas');
         setError('Failed to capture image. Please try again.');
       }
-    }, 'image/jpeg', 0.9);
+    }, 'image/jpeg', IMAGE_QUALITY);
   };
 
   const handleFileUpload = (e) => {
@@ -2356,8 +2366,11 @@ function DetectView({ onAddToInventory }) {
     const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
 
     if (isHeic) {
-      setCapturedImage('heic-placeholder');
+      // HEIC files can't be previewed in the browser, show placeholder instead
+      setCapturedImage(null);
+      setIsHeicUpload(true);
     } else {
+      setIsHeicUpload(false);
       setCapturedImage(URL.createObjectURL(file));
     }
     runDetection(file);
@@ -2368,18 +2381,14 @@ function DetectView({ onAddToInventory }) {
     setError(null);
     setDetectionResult(null);
 
-    console.log('Starting detection for file:', file.name, 'Type:', file.type, 'Size:', file.size);
-
     try {
-      const result = await detectObjects(file, { confidence: 0.3, filterInventory: true });
-      console.log('Detection result:', result);
+      const result = await detectObjects(file, { confidence: DETECTION_CONFIDENCE, filterInventory: true });
       setDetectionResult(result);
 
       if (result.detections?.length > 0 && canvasRef.current) {
         drawDetections(result.detections);
       }
     } catch (err) {
-      console.error('Detection error:', err);
       const errorMsg = err.status
         ? `Error ${err.status}: ${err.message}`
         : `Network error: ${err.message || 'Could not connect to detection service'}`;
@@ -2473,11 +2482,11 @@ function DetectView({ onAddToInventory }) {
           <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', display: 'block' }} />
         )}
 
-        {capturedImage && capturedImage !== 'heic-placeholder' && (
+        {capturedImage && !isHeicUpload && (
           <canvas ref={canvasRef} style={{ width: '100%', display: 'block' }} />
         )}
 
-        {capturedImage === 'heic-placeholder' && (
+        {isHeicUpload && (
           <div className="detect-heic-placeholder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="48" height="48">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -2610,7 +2619,6 @@ function AppContent() {
             clearAuthToken();
           }
         } catch (err) {
-          console.error('Auth check failed:', err);
           clearAuthToken();
         }
       }
@@ -2800,7 +2808,6 @@ function AppContent() {
       try {
         existingItem = await api.getItemByBarcode(barcode);
       } catch (err) {
-        console.error('API lookup error:', err);
       }
 
       if (existingItem) {
@@ -2819,7 +2826,6 @@ function AppContent() {
         try {
           productInfo = await lookupBarcode(barcode);
         } catch (err) {
-          console.error('Product lookup error:', err);
         }
 
         setLookupData(productInfo);
@@ -2831,7 +2837,6 @@ function AppContent() {
         }
       }
     } catch (err) {
-      console.error('Scan handling error:', err);
       showAlert('error', 'Error processing scan. Please try again.');
     }
   };

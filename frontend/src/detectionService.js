@@ -1,9 +1,18 @@
-// Detection API URL - check env var, then use Render detection service
+/**
+ * detectionService.js - Detection API Client
+ *
+ * Handles communication with the Claude Vision detection backend.
+ * Sends images for analysis and returns identified inventory items
+ * with counts and confidence scores.
+ */
+
 const DETECTION_API_URL = import.meta.env.VITE_DETECTION_API_URL ||
   'https://detection-service1.onrender.com';
 
-console.log('🔍 Detection API URL:', DETECTION_API_URL || 'NOT CONFIGURED');
-
+/**
+ * Custom error class for detection API failures.
+ * Includes HTTP status code for error handling in the UI.
+ */
 export class DetectionError extends Error {
   constructor(message, status) {
     super(message);
@@ -12,18 +21,20 @@ export class DetectionError extends Error {
   }
 }
 
+/**
+ * Send an image to the detection API for inventory analysis.
+ *
+ * @param {File} imageFile - Image file to analyze (JPEG, PNG, HEIC, etc.)
+ * @param {Object} options - Detection options
+ * @param {number} options.confidence - Minimum confidence threshold (0.0-1.0)
+ * @param {boolean} options.filterInventory - Only return inventory-relevant items
+ * @returns {Promise<Object>} Detection response with items, counts, and confidence scores
+ * @throws {DetectionError} On network failure or server error
+ */
 export async function detectObjects(imageFile, options = {}) {
   const { confidence = 0.25, filterInventory = true } = options;
 
-  console.log('🔵 detectObjects called with:', {
-    fileName: imageFile?.name,
-    fileSize: imageFile?.size,
-    fileType: imageFile?.type,
-    apiUrl: DETECTION_API_URL
-  });
-
   if (!DETECTION_API_URL) {
-    console.error('❌ Detection API URL not configured');
     throw new DetectionError('Detection service not configured. Set VITE_DETECTION_API_URL environment variable.', 503);
   }
 
@@ -36,9 +47,6 @@ export async function detectObjects(imageFile, options = {}) {
 
   const url = `${DETECTION_API_URL}/detect?${params}`;
 
-  console.log('Sending detection request to:', url);
-  console.log('File:', imageFile.name, 'Size:', imageFile.size, 'Type:', imageFile.type);
-
   let response;
   try {
     response = await fetch(url, {
@@ -46,13 +54,11 @@ export async function detectObjects(imageFile, options = {}) {
       body: formData,
     });
   } catch (networkError) {
-    console.error('Network error:', networkError);
     throw new DetectionError(`Network error: ${networkError.message}`, 0);
   }
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Server error:', response.status, errorText);
     let errorDetail;
     try {
       errorDetail = JSON.parse(errorText).detail;
@@ -65,6 +71,11 @@ export async function detectObjects(imageFile, options = {}) {
   return response.json();
 }
 
+/**
+ * Check if the detection service is online and the model is loaded.
+ *
+ * @returns {Promise<Object>} Health status with model_loaded boolean
+ */
 export async function checkHealth() {
   if (!DETECTION_API_URL) {
     return { status: 'unavailable', model_loaded: false };
@@ -81,6 +92,13 @@ export async function checkHealth() {
   }
 }
 
+/**
+ * Convert a Blob to a File object for upload.
+ *
+ * @param {Blob} blob - Image blob from canvas capture
+ * @param {string} filename - Filename to use for the upload
+ * @returns {File} File object suitable for FormData
+ */
 export function blobToFile(blob, filename = 'capture.jpg') {
   return new File([blob], filename, { type: blob.type || 'image/jpeg' });
 }

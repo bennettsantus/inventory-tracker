@@ -1,18 +1,55 @@
+/**
+ * database.js - PostgreSQL Database Layer
+ *
+ * All database operations for the inventory tracker.
+ * Uses connection pooling via the 'pg' module with parameterized
+ * queries throughout to prevent SQL injection.
+ *
+ * Schema:
+ *   users          - User accounts with bcrypt-hashed passwords
+ *   items          - Inventory items, scoped per user via user_id
+ *   usage_history  - Tracks quantity consumed over time (auto-recorded on quantity decrease)
+ *   waste_log      - Manually logged waste events with reason and cost
+ *   delivery_schedule - Delivery patterns (reserved for future use)
+ *
+ * Key relationships:
+ *   users 1:N items (user_id FK)
+ *   items 1:N usage_history (item_id FK, CASCADE delete)
+ *   items 1:N waste_log (item_id FK, CASCADE delete)
+ */
+
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
+/* === Connection Setup === */
+
+// Support multiple Railway/Render database URL env var names
 const dbUrl = process.env.DATABASE_URL || process.env.DATABASE_PRIVATE_URL || process.env.DATABASE_PUBLIC_URL;
 
 const poolConfig = { connectionString: dbUrl };
+// Enable SSL for remote databases (not localhost)
 if (dbUrl && !dbUrl.includes('localhost') && !dbUrl.includes('127.0.0.1')) {
   poolConfig.ssl = { rejectUnauthorized: false };
 }
 
 const pool = new Pool(poolConfig);
 
+// Bcrypt hash rounds for password hashing
+const BCRYPT_ROUNDS = 10;
+
+// Top N items shown in waste analytics
+const WASTE_TOP_ITEMS_LIMIT = 10;
+
+/* === Schema Initialization === */
+
+/**
+ * Create all tables and indexes if they don't exist.
+ * Safe to call on every server start (uses IF NOT EXISTS).
+ */
 async function initDatabase() {
   const client = await pool.connect();
   try {
+    // Users table - authentication and multi-tenancy
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -23,6 +60,7 @@ async function initDatabase() {
       )
     `);
 
+    // Items table - core inventory data, scoped per user
     await client.query(`
       CREATE TABLE IF NOT EXISTS items (
         id SERIAL PRIMARY KEY,
@@ -37,10 +75,12 @@ async function initDatabase() {
       )
     `);
 
+    // Unique barcode per user (same barcode can exist for different users)
     await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_barcode_user ON items(barcode, user_id)
     `);
 
+    // Usage history - auto-recorded when quantity decreases
     await client.query(`
       CREATE TABLE IF NOT EXISTS usage_history (
         id SERIAL PRIMARY KEY,
@@ -51,6 +91,7 @@ async function initDatabase() {
       )
     `);
 
+    // Delivery schedule - reserved for future delivery tracking feature
     await client.query(`
       CREATE TABLE IF NOT EXISTS delivery_schedule (
         id SERIAL PRIMARY KEY,
@@ -60,6 +101,7 @@ async function initDatabase() {
       )
     `);
 
+    // Waste log - manually recorded waste events
     await client.query(`
       CREATE TABLE IF NOT EXISTS waste_log (
         id SERIAL PRIMARY KEY,
@@ -72,6 +114,7 @@ async function initDatabase() {
       )
     `);
 
+    // Performance indexes for common queries
     await client.query(`CREATE INDEX IF NOT EXISTS idx_barcode ON items(barcode)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_category ON items(category)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_usage_item ON usage_history(item_id)`);
@@ -82,6 +125,9 @@ async function initDatabase() {
   }
 }
 
+/* === Item Queries === */
+
+/** Get all items for a user, sorted by category then name. */
 async function getAll(userId) {
   const { rows } = await pool.query(
     'SELECT * FROM items WHERE user_id = $1 ORDER BY category, name',
@@ -90,6 +136,7 @@ async function getAll(userId) {
   return rows;
 }
 
+/** Look up a single item by its barcode. */
 async function getByBarcode(barcode, userId) {
   const { rows } = await pool.query(
     'SELECT * FROM items WHERE barcode = $1 AND user_id = $2',
@@ -98,6 +145,7 @@ async function getByBarcode(barcode, userId) {
   return rows[0] || null;
 }
 
+/** Get a single item by its database ID. */
 async function getById(id, userId) {
   const { rows } = await pool.query(
     'SELECT * FROM items WHERE id = $1 AND user_id = $2',
@@ -106,6 +154,7 @@ async function getById(id, userId) {
   return rows[0] || null;
 }
 
+/** Get items where current_quantity is at or below min_quantity. */
 async function getLowStock(userId) {
   const { rows } = await pool.query(
     'SELECT * FROM items WHERE user_id = $1 AND current_quantity <= min_quantity ORDER BY name',
@@ -114,6 +163,7 @@ async function getLowStock(userId) {
   return rows;
 }
 
+/** Insert a new inventory item. */
 async function insert(item, userId) {
   const { rows } = await pool.query(
     `INSERT INTO items (user_id, barcode, name, category, unit_type, current_quantity, min_quantity, last_updated)
@@ -124,6 +174,7 @@ async function insert(item, userId) {
   return rows[0];
 }
 
+/** Update an existing inventory item's fields. */
 async function update(id, item, userId) {
   const { rows } = await pool.query(
     `UPDATE items
@@ -135,6 +186,10 @@ async function update(id, item, userId) {
   return rows[0] || null;
 }
 
+/**
+ * Set an item's quantity. If the new quantity is lower than the previous,
+ * automatically records the difference as usage in usage_history.
+ */
 async function updateQuantity(id, quantity, userId) {
   const currentItem = await getById(id, userId);
   if (!currentItem) return null;
@@ -142,6 +197,7 @@ async function updateQuantity(id, quantity, userId) {
   const previousQty = currentItem.current_quantity;
   const difference = previousQty - quantity;
 
+  // Auto-record usage when quantity decreases
   if (difference > 0) {
     await recordUsage(id, difference);
   }
@@ -153,6 +209,23 @@ async function updateQuantity(id, quantity, userId) {
   return rows[0] || null;
 }
 
+/** Permanently delete an item and its associated usage/waste history (CASCADE). */
+async function deleteItem(id, userId) {
+  await pool.query('DELETE FROM items WHERE id = $1 AND user_id = $2', [id, userId]);
+}
+
+/** Get distinct category names for a user. */
+async function getCategories(userId) {
+  const { rows } = await pool.query(
+    'SELECT DISTINCT category FROM items WHERE user_id = $1 ORDER BY category',
+    [userId]
+  );
+  return rows.map(r => r.category);
+}
+
+/* === Usage Analytics === */
+
+/** Record a usage event (called automatically by updateQuantity). */
 async function recordUsage(itemId, quantityUsed) {
   const dayOfWeek = new Date().getDay();
   await pool.query(
@@ -162,6 +235,7 @@ async function recordUsage(itemId, quantityUsed) {
   );
 }
 
+/** Get raw usage history records for an item within a time window. */
 async function getUsageHistory(itemId, days = 30) {
   const { rows } = await pool.query(
     `SELECT * FROM usage_history
@@ -173,6 +247,7 @@ async function getUsageHistory(itemId, days = 30) {
   return rows;
 }
 
+/** Calculate average daily usage for an item over a time window. */
 async function getDailyAverage(itemId, days = 30) {
   const { rows } = await pool.query(
     `SELECT COALESCE(SUM(quantity_used), 0) as total_used,
@@ -194,6 +269,12 @@ async function getDailyAverage(itemId, days = 30) {
   };
 }
 
+/**
+ * Get all items with usage analytics attached.
+ * NOTE: This queries each item's usage individually (N+1 pattern).
+ * Acceptable for small inventories (<500 items). For larger datasets,
+ * consider a single JOIN query with window functions.
+ */
 async function getAllWithAnalytics(userId) {
   const items = await getAll(userId);
   const results = [];
@@ -218,18 +299,12 @@ async function getAllWithAnalytics(userId) {
   return results;
 }
 
-async function deleteItem(id, userId) {
-  await pool.query('DELETE FROM items WHERE id = $1 AND user_id = $2', [id, userId]);
-}
+/* === Waste Tracking === */
 
-async function getCategories(userId) {
-  const { rows } = await pool.query(
-    'SELECT DISTINCT category FROM items WHERE user_id = $1 ORDER BY category',
-    [userId]
-  );
-  return rows.map(r => r.category);
-}
-
+/**
+ * Record a waste event and reduce the item's quantity accordingly.
+ * Quantity will not go below zero.
+ */
 async function recordWaste(itemId, quantity, reason, notes, costEstimate, userId) {
   const item = await getById(itemId, userId);
   if (!item) return null;
@@ -240,6 +315,7 @@ async function recordWaste(itemId, quantity, reason, notes, costEstimate, userId
     [itemId, quantity, reason, notes, costEstimate]
   );
 
+  // Ensure quantity never goes negative
   const newQty = Math.max(0, item.current_quantity - quantity);
   await pool.query(
     `UPDATE items SET current_quantity = $1, last_updated = NOW() WHERE id = $2 AND user_id = $3`,
@@ -249,6 +325,7 @@ async function recordWaste(itemId, quantity, reason, notes, costEstimate, userId
   return await getById(itemId, userId);
 }
 
+/** Get waste history for a specific item within a time window. */
 async function getWasteHistory(itemId, days = 30, userId) {
   const item = await getById(itemId, userId);
   if (!item) return [];
@@ -263,6 +340,7 @@ async function getWasteHistory(itemId, days = 30, userId) {
   return rows;
 }
 
+/** Get all waste records across all items within a time window. */
 async function getAllWaste(days = 30, userId) {
   const { rows } = await pool.query(
     `SELECT w.*, i.name as item_name, i.category, i.unit_type
@@ -275,7 +353,12 @@ async function getAllWaste(days = 30, userId) {
   return rows;
 }
 
+/**
+ * Compute waste analytics: totals by reason, top wasted items, and overall summary.
+ * Returns { summary, byReason, topItems, days }.
+ */
 async function getWasteAnalytics(days = 30, userId) {
+  // Waste grouped by reason (expired, spoiled, damaged, etc.)
   const { rows: byReason } = await pool.query(
     `SELECT w.reason, SUM(w.quantity) as total_quantity, COUNT(*) as count,
             SUM(COALESCE(w.cost_estimate, 0)) as total_cost
@@ -287,6 +370,7 @@ async function getWasteAnalytics(days = 30, userId) {
     [userId, days]
   );
 
+  // Top items by total waste quantity
   const { rows: topItems } = await pool.query(
     `SELECT i.id, i.name, i.category, i.unit_type,
             SUM(w.quantity) as total_wasted,
@@ -297,10 +381,11 @@ async function getWasteAnalytics(days = 30, userId) {
      WHERE i.user_id = $1 AND w.recorded_at >= NOW() - INTERVAL '1 day' * $2
      GROUP BY i.id, i.name, i.category, i.unit_type
      ORDER BY total_wasted DESC
-     LIMIT 10`,
-    [userId, days]
+     LIMIT $3`,
+    [userId, days, WASTE_TOP_ITEMS_LIMIT]
   );
 
+  // Overall totals
   const { rows: summaryRows } = await pool.query(
     `SELECT COALESCE(SUM(w.quantity), 0) as total_quantity,
             COALESCE(SUM(COALESCE(w.cost_estimate, 0)), 0) as total_cost,
@@ -316,8 +401,11 @@ async function getWasteAnalytics(days = 30, userId) {
   return { summary, byReason, topItems, days };
 }
 
+/* === User Authentication === */
+
+/** Create a new user with a bcrypt-hashed password. Email is stored lowercase. */
 async function createUser(email, password, name) {
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const { rows } = await pool.query(
     `INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3)
      RETURNING id, email, name, created_at`,
@@ -326,11 +414,13 @@ async function createUser(email, password, name) {
   return rows[0];
 }
 
+/** Look up a user by email (case-insensitive). */
 async function getUserByEmail(email) {
   const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
   return rows[0] || null;
 }
 
+/** Look up a user by ID. Returns only safe fields (no password_hash). */
 async function getUserById(id) {
   const { rows } = await pool.query(
     'SELECT id, email, name, created_at FROM users WHERE id = $1',
@@ -339,6 +429,7 @@ async function getUserById(id) {
   return rows[0] || null;
 }
 
+/** Verify email + password combination. Returns user object or null. */
 async function verifyPassword(email, password) {
   const user = await getUserByEmail(email);
   if (!user) return null;
@@ -346,6 +437,8 @@ async function verifyPassword(email, password) {
   if (!valid) return null;
   return { id: user.id, email: user.email, name: user.name };
 }
+
+/* === Exports === */
 
 module.exports = {
   initDatabase,
