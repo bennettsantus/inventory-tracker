@@ -23,13 +23,20 @@ from models import (
 
 logger = logging.getLogger(__name__)
 
-VISION_PROMPT = """You are an inventory counting assistant for a restaurant. Analyze this image and identify every distinct product you can see.
+VISION_PROMPT = """You are a precise inventory counting assistant for a restaurant. Your job is to accurately count and identify every product in this image.
+
+COUNTING METHOD - Follow these steps carefully:
+1. First, scan the image and identify all distinct product types present.
+2. For each product type, count systematically: go left-to-right, top-to-bottom. Count each visible unit individually.
+3. For stacked or clustered items: estimate depth using visible edges, shadows, and spacing. A standard 12oz can is 2.6 inches wide and 4.83 inches tall. A standard 2-liter bottle is about 4.3 inches wide. Use these known sizes to estimate how many items are in a cluster.
+4. If items are partially hidden behind others, include them in your count with a note.
+5. Double-check your count for each product type before finalizing.
 
 For each product, provide:
-- "class_name": A specific, descriptive name (e.g., "Coca-Cola 12oz can", "Heinz Ketchup 20oz bottle", "Budweiser 12oz can"). Include brand, size, and container type when visible.
-- "count": How many of this exact product you see.
-- "confidence": Your confidence from 0.0 to 1.0 that this identification is correct.
-- "description": Optional brief note (e.g., "appears to be diet variant", "partially obscured").
+- "class_name": Specific name with brand, size, and container type when visible (e.g., "Coca-Cola 12oz can", "Heinz Ketchup 20oz bottle").
+- "count": Exact number you counted. Be precise — do not round or estimate loosely.
+- "confidence": Your confidence from 0.0 to 1.0 in the identification AND count accuracy.
+- "description": How they are arranged (e.g., "2 rows of 3, all fully visible" or "stack of 4, bottom one partially hidden").
 
 Return ONLY a JSON object in this exact format, with no other text:
 {
@@ -38,13 +45,14 @@ Return ONLY a JSON object in this exact format, with no other text:
       "class_name": "Coca-Cola 12oz can",
       "count": 6,
       "confidence": 0.95,
-      "description": "Regular Coca-Cola, red cans"
+      "description": "2 rows of 3, all fully visible"
     }
   ]
 }
 
 Rules:
 - Group identical products together with a count, do NOT list each individual unit separately.
+- Be PRECISE with counts. If you see 7 cans, say 7, not "about 6-8".
 - If you cannot identify the specific brand, use a generic description (e.g., "unknown cola can", "green glass bottle").
 - If no products/inventory items are visible, return {"items": []}.
 - Only return the JSON object. No markdown, no explanation, no code fences."""
@@ -209,6 +217,7 @@ class VisionDetector:
             processing_time_ms=round(processing_time, 1),
             image_width=orig_w,
             image_height=orig_h,
+            image_preview=b64_image,
         )
 
     @property

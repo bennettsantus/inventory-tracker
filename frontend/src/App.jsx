@@ -2385,6 +2385,13 @@ function DetectView({ onAddToInventory }) {
       const result = await detectObjects(file, { confidence: DETECTION_CONFIDENCE, filterInventory: true });
       setDetectionResult(result);
 
+      // If the API returned a JPEG preview (useful for HEIC files the browser can't display),
+      // use it as the captured image so the user can always see what was analyzed
+      if (result.image_preview) {
+        setCapturedImage(`data:image/jpeg;base64,${result.image_preview}`);
+        setIsHeicUpload(false);
+      }
+
       if (result.detections?.length > 0 && canvasRef.current) {
         drawDetections(result.detections);
       }

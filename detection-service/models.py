@@ -32,6 +32,7 @@ class DetectionResponse(BaseModel):
     image_width: int = 0
     image_height: int = 0
     error: Optional[str] = None
+    image_preview: Optional[str] = Field(default=None, description="Base64 JPEG preview of the processed image")
 
 
 class HealthResponse(BaseModel):

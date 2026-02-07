@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     anthropic_max_tokens: int = 1024
 
     confidence_threshold: float = 0.25
-    max_image_size: int = 1280
+    max_image_size: int = 2048
     max_upload_mb: int = 50
     log_level: str = "INFO"
     allowed_origins: str = "*"
