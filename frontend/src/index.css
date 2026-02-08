@@ -3208,6 +3208,49 @@ body {
   font-style: italic;
 }
 
+.detect-item-toggle input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.detect-edit-fields {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.detect-edit-name {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: white;
+}
+
+.detect-edit-qty {
+  width: 4rem;
+  padding: 0.5rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-align: center;
+  background: white;
+}
+
+.detect-edit-name:focus,
+.detect-edit-qty:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
 .detect-no-results {
   text-align: center;
   padding: 2rem;
@@ -3237,6 +3280,13 @@ body {
 :root.dark .detect-confidence-badge.high { background: #166534; color: #dcfce7; }
 :root.dark .detect-confidence-badge.medium { background: #854d0e; color: #fef9c3; }
 :root.dark .detect-confidence-badge.low { background: #991b1b; color: #fee2e2; }
+
+:root.dark .detect-edit-name,
+:root.dark .detect-edit-qty {
+  background: var(--gray-700);
+  border-color: var(--gray-600);
+  color: var(--text-primary);
+}
 
 :root.dark .stat-box {
   background: rgba(37, 99, 235, 0.15);

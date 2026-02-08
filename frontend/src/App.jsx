@@ -2290,6 +2290,8 @@ function DetectView({ onAddToInventory }) {
   const [serviceStatus, setServiceStatus] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
   const [isHeicUpload, setIsHeicUpload] = useState(false);
+  const [editableItems, setEditableItems] = useState([]);
+  const [isAddingToInventory, setIsAddingToInventory] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -2385,15 +2387,22 @@ function DetectView({ onAddToInventory }) {
       const result = await detectObjects(file, { confidence: DETECTION_CONFIDENCE, filterInventory: true });
       setDetectionResult(result);
 
+      // Populate editable items from detection results
+      if (result.summary?.length > 0) {
+        setEditableItems(result.summary.map((item, idx) => ({
+          id: idx,
+          name: item.class_name,
+          quantity: item.count,
+          category: 'Uncategorized',
+          included: true,
+        })));
+      }
+
       // If the API returned a JPEG preview (useful for HEIC files the browser can't display),
       // use it as the captured image so the user can always see what was analyzed
       if (result.image_preview) {
         setCapturedImage(`data:image/jpeg;base64,${result.image_preview}`);
         setIsHeicUpload(false);
-      }
-
-      if (result.detections?.length > 0 && canvasRef.current) {
-        drawDetections(result.detections);
       }
     } catch (err) {
       const errorMsg = err.status
@@ -2443,6 +2452,7 @@ function DetectView({ onAddToInventory }) {
     setDetectionResult(null);
     setCapturedImage(null);
     setIsHeicUpload(false);
+    setEditableItems([]);
     setError(null);
     if (mode === 'camera') startCamera();
   };
@@ -2562,41 +2572,100 @@ function DetectView({ onAddToInventory }) {
           </div>
 
           <div className="detect-items-list">
-            {detectionResult.summary.map((item, idx) => (
-              <div key={idx} className={`detect-item-row ${item.needs_review ? 'needs-review' : ''}`}>
-                <div className="detect-item-header">
-                  <div className="detect-item-info">
-                    <span className="detect-item-name">{item.class_name}</span>
-                    <span className={`detect-confidence-badge ${item.confidence_level || 'medium'}`}>
-                      {item.confidence_level || 'medium'}
-                    </span>
-                    {item.needs_review && <span className="detect-review-flag">Needs Review</span>}
+            {editableItems.map((item, idx) => {
+              const original = detectionResult.summary[idx];
+              return (
+                <div key={item.id} className={`detect-item-row ${original?.needs_review ? 'needs-review' : ''}`}>
+                  <div className="detect-item-header">
+                    <div className="detect-item-info">
+                      <span className={`detect-confidence-badge ${original?.confidence_level || 'medium'}`}>
+                        {original?.confidence_level || 'medium'}
+                      </span>
+                      {original?.needs_review && <span className="detect-review-flag">Needs Review</span>}
+                    </div>
+                    <label className="detect-item-toggle">
+                      <input
+                        type="checkbox"
+                        checked={item.included}
+                        onChange={() => {
+                          const updated = [...editableItems];
+                          updated[idx] = { ...updated[idx], included: !updated[idx].included };
+                          setEditableItems(updated);
+                        }}
+                      />
+                    </label>
                   </div>
-                  <div className="detect-item-count">x{item.count}</div>
+                  <div className="detect-edit-fields">
+                    <input
+                      type="text"
+                      className="detect-edit-name"
+                      value={item.name}
+                      onChange={(e) => {
+                        const updated = [...editableItems];
+                        updated[idx] = { ...updated[idx], name: e.target.value };
+                        setEditableItems(updated);
+                      }}
+                    />
+                    <input
+                      type="number"
+                      className="detect-edit-qty"
+                      value={item.quantity}
+                      min="0"
+                      onChange={(e) => {
+                        const updated = [...editableItems];
+                        updated[idx] = { ...updated[idx], quantity: Math.max(0, parseInt(e.target.value) || 0) };
+                        setEditableItems(updated);
+                      }}
+                    />
+                  </div>
+                  {original?.sections && (
+                    <div className="detect-grid">
+                      <div className="detect-grid-row">
+                        <span className="grid-cell">{original.sections.top_left}</span>
+                        <span className="grid-cell">{original.sections.top_center}</span>
+                        <span className="grid-cell">{original.sections.top_right}</span>
+                      </div>
+                      <div className="detect-grid-row">
+                        <span className="grid-cell">{original.sections.middle_left}</span>
+                        <span className="grid-cell">{original.sections.middle_center}</span>
+                        <span className="grid-cell">{original.sections.middle_right}</span>
+                      </div>
+                      <div className="detect-grid-row">
+                        <span className="grid-cell">{original.sections.bottom_left}</span>
+                        <span className="grid-cell">{original.sections.bottom_center}</span>
+                        <span className="grid-cell">{original.sections.bottom_right}</span>
+                      </div>
+                    </div>
+                  )}
+                  {original?.notes && <div className="detect-item-notes">{original.notes}</div>}
                 </div>
-                {item.sections && (
-                  <div className="detect-grid">
-                    <div className="detect-grid-row">
-                      <span className="grid-cell">{item.sections.top_left}</span>
-                      <span className="grid-cell">{item.sections.top_center}</span>
-                      <span className="grid-cell">{item.sections.top_right}</span>
-                    </div>
-                    <div className="detect-grid-row">
-                      <span className="grid-cell">{item.sections.middle_left}</span>
-                      <span className="grid-cell">{item.sections.middle_center}</span>
-                      <span className="grid-cell">{item.sections.middle_right}</span>
-                    </div>
-                    <div className="detect-grid-row">
-                      <span className="grid-cell">{item.sections.bottom_left}</span>
-                      <span className="grid-cell">{item.sections.bottom_center}</span>
-                      <span className="grid-cell">{item.sections.bottom_right}</span>
-                    </div>
-                  </div>
-                )}
-                {item.notes && <div className="detect-item-notes">{item.notes}</div>}
-              </div>
-            ))}
+              );
+            })}
           </div>
+
+          {onAddToInventory && editableItems.some(i => i.included) && (
+            <button
+              className="btn btn-primary btn-lg"
+              style={{ width: '100%', marginTop: '1rem' }}
+              disabled={isAddingToInventory}
+              onClick={async () => {
+                setIsAddingToInventory(true);
+                try {
+                  const itemsToAdd = editableItems
+                    .filter(i => i.included && i.name.trim())
+                    .map(i => ({ name: i.name.trim(), quantity: i.quantity, category: i.category }));
+                  if (itemsToAdd.length > 0) {
+                    await onAddToInventory(itemsToAdd);
+                    resetDetection();
+                  }
+                } finally {
+                  setIsAddingToInventory(false);
+                }
+              }}
+            >
+              {isAddingToInventory ? 'Adding...' : `Add ${editableItems.filter(i => i.included).length} Items to Inventory`}
+            </button>
+          )}
         </div>
       )}
 
@@ -3183,7 +3252,31 @@ function AppContent() {
       )}
 
       {view === 'detect' && (
-        <DetectView />
+        <DetectView onAddToInventory={async (items) => {
+          let added = 0;
+          const errors = [];
+          for (const item of items) {
+            try {
+              await api.createItem({
+                barcode: `detect-${Date.now()}-${added}`,
+                name: item.name,
+                category: item.category || 'Uncategorized',
+                unit_type: 'units',
+                current_quantity: item.quantity,
+                min_quantity: 0,
+              });
+              added++;
+            } catch (err) {
+              errors.push(`${item.name}: ${err.message}`);
+            }
+          }
+          await loadItems();
+          if (errors.length > 0) {
+            showAlert('error', `Added ${added} items. Errors: ${errors.join(', ')}`);
+          } else {
+            showAlert('success', `Added ${added} item${added !== 1 ? 's' : ''} to inventory`);
+          }
+        }} />
       )}
 
       {showItemModal && (

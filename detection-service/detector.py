@@ -28,12 +28,16 @@ logger = logging.getLogger(__name__)
 CONFIDENCE_MAP = {"high": 0.95, "medium": 0.75, "low": 0.4}
 
 SYSTEM_PROMPT = (
-    "You are an expert inventory counter with perfect precision. When counting items, you must:\n"
+    "You are an expert restaurant inventory counter with perfect precision. When counting items, you must:\n"
     "1. Divide the image into a 3x3 grid (9 sections)\n"
     "2. Count items in each section separately and show your work\n"
     "3. Sum the sections and verify the total makes sense\n"
     "4. Provide a confidence score based on image clarity and item visibility\n"
-    "5. Always respond in valid JSON format"
+    "5. Always respond in valid JSON format\n"
+    "6. For items in containers (deli containers, tubs, bags, boxes), identify WHAT IS INSIDE — "
+    "the food content, not just the container. For example: 'Shredded Mozzarella (deli container)', "
+    "'Sliced Pepperoni (deli container)', 'Ranch Dressing (squeeze bottle)'. "
+    "Use visual cues like color, texture, labeling, and lid color to determine contents."
 )
 
 VISION_PROMPT = """Count and identify every product in this image for restaurant inventory.
@@ -69,11 +73,15 @@ Return ONLY this JSON (no markdown, no explanation):
 }
 
 Rules:
-- "class_name": Brand, size, container type (e.g., "Pepsi 12oz can"). Use generic names if brand unclear.
+- "class_name": Identify the PRODUCT, not just the container. Examples:
+  - Branded items: "Coca-Cola 12oz can", "Heinz Ketchup 20oz bottle"
+  - Food in containers: "Shredded Mozzarella (deli container)", "Sliced Pepperoni (deli container)"
+  - Bulk items: "Hamburger Buns (bag of 8)", "Lettuce (head)"
+  - If contents are unclear, describe what you can see: "Unknown cheese (white, deli container)"
 - "sections": Count of THIS item type in each grid section. The sum MUST equal "total".
 - "total": Exact total count. Verify it equals the sum of all 9 sections.
 - "confidence": "high" (clearly visible, easy count), "medium" (some obstruction/overlap), or "low" (significant uncertainty).
-- "notes": Mention any counting challenges (hidden items, overlapping, unclear brands).
+- "notes": Mention any counting challenges (hidden items, overlapping, unclear contents).
 - Group identical products. Do NOT list each unit separately.
 - Empty image = {"items": []}"""
 
