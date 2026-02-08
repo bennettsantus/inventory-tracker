@@ -3276,6 +3276,7 @@ function AppContent() {
           } else {
             showAlert('success', `Added ${added} item${added !== 1 ? 's' : ''} to inventory`);
           }
+          if (added > 0) setView('list');
         }} />
       )}
 
