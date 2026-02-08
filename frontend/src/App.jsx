@@ -2442,6 +2442,7 @@ function DetectView({ onAddToInventory }) {
   const resetDetection = () => {
     setDetectionResult(null);
     setCapturedImage(null);
+    setIsHeicUpload(false);
     setError(null);
     if (mode === 'camera') startCamera();
   };
@@ -2490,7 +2491,7 @@ function DetectView({ onAddToInventory }) {
         )}
 
         {capturedImage && !isHeicUpload && (
-          <canvas ref={canvasRef} style={{ width: '100%', display: 'block' }} />
+          <img src={capturedImage} alt="Uploaded preview" style={{ width: '100%', display: 'block', borderRadius: '8px' }} />
         )}
 
         {isHeicUpload && (
