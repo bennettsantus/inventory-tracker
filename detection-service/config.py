@@ -5,7 +5,8 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-5-20250929"
-    anthropic_max_tokens: int = 1024
+    anthropic_max_tokens: int = 16000
+    anthropic_thinking_budget: int = 10000
 
     confidence_threshold: float = 0.25
     max_image_size: int = 2048

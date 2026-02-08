@@ -23,22 +23,15 @@ from models import (
 
 logger = logging.getLogger(__name__)
 
-VISION_PROMPT = """You are a precise inventory counting assistant for a restaurant. Your job is to accurately count and identify every product in this image.
+VISION_PROMPT = """Count and identify every product in this image for restaurant inventory.
 
-COUNTING METHOD - Follow these steps carefully:
-1. First, scan the image and identify all distinct product types present.
-2. For each product type, count systematically: go left-to-right, top-to-bottom. Count each visible unit individually.
-3. For stacked or clustered items: estimate depth using visible edges, shadows, and spacing. A standard 12oz can is 2.6 inches wide and 4.83 inches tall. A standard 2-liter bottle is about 4.3 inches wide. Use these known sizes to estimate how many items are in a cluster.
-4. If items are partially hidden behind others, include them in your count with a note.
-5. Double-check your count for each product type before finalizing.
+COUNTING INSTRUCTIONS:
+1. Identify each distinct product type (brand + size + container).
+2. For each type, count every unit individually — mentally number them "1, 2, 3..." going left-to-right, top-to-bottom.
+3. Include partially hidden items if any part is visible.
+4. After your first count, recount each type to verify.
 
-For each product, provide:
-- "class_name": Specific name with brand, size, and container type when visible (e.g., "Coca-Cola 12oz can", "Heinz Ketchup 20oz bottle").
-- "count": Exact number you counted. Be precise — do not round or estimate loosely.
-- "confidence": Your confidence from 0.0 to 1.0 in the identification AND count accuracy.
-- "description": How they are arranged (e.g., "2 rows of 3, all fully visible" or "stack of 4, bottom one partially hidden").
-
-Return ONLY a JSON object in this exact format, with no other text:
+Return ONLY this JSON (no markdown, no explanation):
 {
   "items": [
     {
@@ -50,12 +43,12 @@ Return ONLY a JSON object in this exact format, with no other text:
   ]
 }
 
-Rules:
-- Group identical products together with a count, do NOT list each individual unit separately.
-- Be PRECISE with counts. If you see 7 cans, say 7, not "about 6-8".
-- If you cannot identify the specific brand, use a generic description (e.g., "unknown cola can", "green glass bottle").
-- If no products/inventory items are visible, return {"items": []}.
-- Only return the JSON object. No markdown, no explanation, no code fences."""
+- "class_name": Brand, size, container type (e.g., "Pepsi 12oz can"). Use generic names if brand unclear.
+- "count": Exact number. Be precise.
+- "confidence": 0.0-1.0 for identification AND count accuracy.
+- "description": How arranged, counting notes.
+- Group identical products. Do NOT list each unit separately.
+- Empty image = {"items": []}"""
 
 
 class VisionDetector:
@@ -153,6 +146,10 @@ class VisionDetector:
             message = self.client.messages.create(
                 model=self.settings.anthropic_model,
                 max_tokens=self.settings.anthropic_max_tokens,
+                thinking={
+                    "type": "enabled",
+                    "budget_tokens": self.settings.anthropic_thinking_budget,
+                },
                 messages=[
                     {
                         "role": "user",
@@ -173,7 +170,15 @@ class VisionDetector:
                     }
                 ],
             )
-            raw_text = message.content[0].text
+            # With extended thinking, response has thinking blocks + text blocks.
+            # Extract the text block containing the JSON.
+            raw_text = None
+            for block in message.content:
+                if block.type == "text":
+                    raw_text = block.text
+                    break
+            if raw_text is None:
+                raise ValueError("No text block in response")
         except anthropic.APIError as e:
             logger.error(f"Anthropic API error: {e}")
             return DetectionResponse(success=False, error=f"Vision API error: {e.message}")
