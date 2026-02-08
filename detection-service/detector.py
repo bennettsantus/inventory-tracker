@@ -54,6 +54,7 @@ Return ONLY this JSON (no markdown, no explanation):
   "items": [
     {
       "class_name": "Coca-Cola 12oz can",
+      "category": "Beverages",
       "sections": {
         "top_left": 0,
         "top_center": 0,
@@ -78,6 +79,7 @@ Rules:
   - Food in containers: "Shredded Mozzarella (deli container)", "Sliced Pepperoni (deli container)"
   - Bulk items: "Hamburger Buns (bag of 8)", "Lettuce (head)"
   - If contents are unclear, describe what you can see: "Unknown cheese (white, deli container)"
+- "category": One of: "Produce", "Dairy", "Meat", "Seafood", "Dry Goods", "Beverages", "Frozen", "Supplies". Pick the best match.
 - "sections": Count of THIS item type in each grid section. The sum MUST equal "total".
 - "total": Exact total count. Verify it equals the sum of all 9 sections.
 - "confidence": "high" (clearly visible, easy count), "medium" (some obstruction/overlap), or "low" (significant uncertainty).
@@ -169,11 +171,17 @@ class VisionDetector:
             else:
                 total = max(1, stated_total)
 
+            # Validate category against allowed list
+            valid_categories = {"Produce", "Dairy", "Meat", "Seafood", "Dry Goods", "Beverages", "Frozen", "Supplies"}
+            raw_category = str(item.get("category", "")).strip()
+            category = raw_category if raw_category in valid_categories else "Uncategorized"
+
             results.append({
                 "class_name": str(item.get("class_name", "unknown")),
                 "count": total,
                 "confidence": conf_numeric,
                 "confidence_level": confidence_level,
+                "category": category,
                 "sections": {k: int(v) for k, v in sections.items()} if sections else {},
                 "notes": item.get("notes"),
                 "needs_review": confidence_level == "low",
@@ -270,6 +278,7 @@ class VisionDetector:
                 count=item["count"],
                 avg_confidence=item["confidence"],
                 confidence_level=item["confidence_level"],
+                category=item.get("category", "Uncategorized"),
                 sections=SectionCounts(**item["sections"]) if item.get("sections") else None,
                 notes=item.get("notes"),
                 needs_review=item.get("needs_review", False),

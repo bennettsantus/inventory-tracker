@@ -3244,8 +3244,20 @@ body {
   background: white;
 }
 
+.detect-edit-category {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  background: white;
+  cursor: pointer;
+}
+
 .detect-edit-name:focus,
-.detect-edit-qty:focus {
+.detect-edit-qty:focus,
+.detect-edit-category:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
@@ -3282,7 +3294,8 @@ body {
 :root.dark .detect-confidence-badge.low { background: #991b1b; color: #fee2e2; }
 
 :root.dark .detect-edit-name,
-:root.dark .detect-edit-qty {
+:root.dark .detect-edit-qty,
+:root.dark .detect-edit-category {
   background: var(--gray-700);
   border-color: var(--gray-600);
   color: var(--text-primary);

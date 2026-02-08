@@ -35,6 +35,7 @@ class DetectionSummary(BaseModel):
     count: int
     avg_confidence: float
     confidence_level: str = Field(default="medium", description="high, medium, or low")
+    category: str = Field(default="Uncategorized", description="Suggested inventory category")
     sections: Optional[SectionCounts] = Field(default=None, description="3x3 grid count breakdown")
     notes: Optional[str] = Field(default=None, description="Counting challenges or unclear areas")
     needs_review: bool = Field(default=False, description="True if low confidence — flag for manual review")

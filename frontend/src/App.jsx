@@ -2281,6 +2281,26 @@ function SettingsMenu({ darkMode, onToggleDarkMode, userName, onLogout }) {
   );
 }
 
+// Keyword-based category fallback when the API doesn't return one
+const CATEGORY_KEYWORDS = {
+  Beverages: ['cola', 'coke', 'pepsi', 'sprite', 'fanta', 'water', 'juice', 'tea', 'coffee', 'beer', 'wine', 'vodka', 'rum', 'soda', 'drink', 'lemonade', 'energy', 'bottle', 'can'],
+  Dairy: ['cheese', 'milk', 'cream', 'butter', 'yogurt', 'mozzarella', 'parmesan', 'cheddar', 'provolone', 'sour cream', 'half and half', 'whipped'],
+  Meat: ['chicken', 'beef', 'pork', 'turkey', 'bacon', 'sausage', 'pepperoni', 'salami', 'ham', 'steak', 'ground', 'wing', 'rib'],
+  Seafood: ['fish', 'shrimp', 'salmon', 'tuna', 'crab', 'lobster', 'tilapia', 'cod'],
+  Produce: ['lettuce', 'tomato', 'onion', 'pepper', 'cucumber', 'carrot', 'celery', 'mushroom', 'avocado', 'lemon', 'lime', 'garlic', 'spinach', 'basil', 'cilantro', 'jalapeño', 'fruit', 'apple', 'banana'],
+  'Dry Goods': ['flour', 'sugar', 'rice', 'pasta', 'bread', 'bun', 'tortilla', 'oil', 'vinegar', 'sauce', 'ketchup', 'mustard', 'mayo', 'dressing', 'seasoning', 'spice', 'salt', 'pepper', 'crouton', 'chip'],
+  Frozen: ['frozen', 'ice cream', 'fries', 'french fries', 'popsicle', 'ice'],
+  Supplies: ['napkin', 'cup', 'plate', 'fork', 'spoon', 'knife', 'straw', 'bag', 'wrap', 'foil', 'glove', 'towel', 'container', 'lid'],
+};
+
+function guessCategoryFromName(name) {
+  const lower = name.toLowerCase();
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.some(kw => lower.includes(kw))) return category;
+  }
+  return 'Uncategorized';
+}
+
 // === DetectView Component ===
 function DetectView({ onAddToInventory }) {
   const [mode, setMode] = useState('upload');
@@ -2393,7 +2413,7 @@ function DetectView({ onAddToInventory }) {
           id: idx,
           name: item.class_name,
           quantity: item.count,
-          category: 'Uncategorized',
+          category: item.category || guessCategoryFromName(item.class_name),
           included: true,
         })));
       }
@@ -2618,6 +2638,19 @@ function DetectView({ onAddToInventory }) {
                       }}
                     />
                   </div>
+                  <select
+                    className="detect-edit-category"
+                    value={item.category}
+                    onChange={(e) => {
+                      const updated = [...editableItems];
+                      updated[idx] = { ...updated[idx], category: e.target.value };
+                      setEditableItems(updated);
+                    }}
+                  >
+                    {DEFAULT_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
                   {original?.sections && (
                     <div className="detect-grid">
                       <div className="detect-grid-row">
