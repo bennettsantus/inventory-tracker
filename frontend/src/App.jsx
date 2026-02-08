@@ -2283,7 +2283,7 @@ function SettingsMenu({ darkMode, onToggleDarkMode, userName, onLogout }) {
 
 // === DetectView Component ===
 function DetectView({ onAddToInventory }) {
-  const [mode, setMode] = useState('camera');
+  const [mode, setMode] = useState('upload');
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectionResult, setDetectionResult] = useState(null);
   const [error, setError] = useState(null);
