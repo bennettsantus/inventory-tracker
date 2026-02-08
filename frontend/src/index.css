@@ -3119,17 +3119,27 @@ body {
 
 .detect-item-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.75rem;
   background: var(--gray-50);
   border-radius: 8px;
 }
 
+.detect-item-row.needs-review {
+  border-left: 3px solid #ef4444;
+}
+
+.detect-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .detect-item-info {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: 0.25rem;
 }
 
 .detect-item-name {
@@ -3138,15 +3148,64 @@ body {
   text-transform: capitalize;
 }
 
-.detect-item-conf {
-  font-size: 0.75rem;
-  color: var(--gray-500);
+.detect-confidence-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  width: fit-content;
+}
+.detect-confidence-badge.high { background: #dcfce7; color: #166534; }
+.detect-confidence-badge.medium { background: #fef9c3; color: #854d0e; }
+.detect-confidence-badge.low { background: #fee2e2; color: #991b1b; }
+
+.detect-review-flag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #ef4444;
 }
 
 .detect-item-count {
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--primary);
+}
+
+.detect-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--gray-200);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.detect-grid-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 2px;
+}
+
+.grid-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--gray-50);
+  color: var(--text-primary);
+  min-height: 2rem;
+}
+.grid-cell:empty::after { content: "0"; color: var(--gray-400); }
+
+.detect-item-notes {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+  font-style: italic;
 }
 
 .detect-no-results {
@@ -3166,6 +3225,18 @@ body {
 :root.dark .detect-item-row {
   background: var(--gray-800);
 }
+
+:root.dark .detect-grid {
+  background: var(--gray-600);
+}
+
+:root.dark .grid-cell {
+  background: var(--gray-800);
+}
+
+:root.dark .detect-confidence-badge.high { background: #166534; color: #dcfce7; }
+:root.dark .detect-confidence-badge.medium { background: #854d0e; color: #fef9c3; }
+:root.dark .detect-confidence-badge.low { background: #991b1b; color: #fee2e2; }
 
 :root.dark .stat-box {
   background: rgba(37, 99, 235, 0.15);

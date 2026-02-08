@@ -9,6 +9,19 @@ class BoundingBox(BaseModel):
     y2: float = Field(description="Bottom coordinate")
 
 
+class SectionCounts(BaseModel):
+    """Grid-based count breakdown — image divided into 3x3 sections."""
+    top_left: int = 0
+    top_center: int = 0
+    top_right: int = 0
+    middle_left: int = 0
+    middle_center: int = 0
+    middle_right: int = 0
+    bottom_left: int = 0
+    bottom_center: int = 0
+    bottom_right: int = 0
+
+
 class DetectedObject(BaseModel):
     class_name: str = Field(description="Detected item name")
     class_id: int = Field(default=0, description="Class ID (legacy, always 0 for vision API)")
@@ -21,6 +34,10 @@ class DetectionSummary(BaseModel):
     class_name: str
     count: int
     avg_confidence: float
+    confidence_level: str = Field(default="medium", description="high, medium, or low")
+    sections: Optional[SectionCounts] = Field(default=None, description="3x3 grid count breakdown")
+    notes: Optional[str] = Field(default=None, description="Counting challenges or unclear areas")
+    needs_review: bool = Field(default=False, description="True if low confidence — flag for manual review")
 
 
 class DetectionResponse(BaseModel):

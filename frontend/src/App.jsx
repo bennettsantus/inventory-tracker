@@ -2563,12 +2563,37 @@ function DetectView({ onAddToInventory }) {
 
           <div className="detect-items-list">
             {detectionResult.summary.map((item, idx) => (
-              <div key={idx} className="detect-item-row">
-                <div className="detect-item-info">
-                  <span className="detect-item-name">{item.class_name}</span>
-                  <span className="detect-item-conf">{(item.avg_confidence * 100).toFixed(0)}% confidence</span>
+              <div key={idx} className={`detect-item-row ${item.needs_review ? 'needs-review' : ''}`}>
+                <div className="detect-item-header">
+                  <div className="detect-item-info">
+                    <span className="detect-item-name">{item.class_name}</span>
+                    <span className={`detect-confidence-badge ${item.confidence_level || 'medium'}`}>
+                      {item.confidence_level || 'medium'}
+                    </span>
+                    {item.needs_review && <span className="detect-review-flag">Needs Review</span>}
+                  </div>
+                  <div className="detect-item-count">x{item.count}</div>
                 </div>
-                <div className="detect-item-count">x{item.count}</div>
+                {item.sections && (
+                  <div className="detect-grid">
+                    <div className="detect-grid-row">
+                      <span className="grid-cell">{item.sections.top_left}</span>
+                      <span className="grid-cell">{item.sections.top_center}</span>
+                      <span className="grid-cell">{item.sections.top_right}</span>
+                    </div>
+                    <div className="detect-grid-row">
+                      <span className="grid-cell">{item.sections.middle_left}</span>
+                      <span className="grid-cell">{item.sections.middle_center}</span>
+                      <span className="grid-cell">{item.sections.middle_right}</span>
+                    </div>
+                    <div className="detect-grid-row">
+                      <span className="grid-cell">{item.sections.bottom_left}</span>
+                      <span className="grid-cell">{item.sections.bottom_center}</span>
+                      <span className="grid-cell">{item.sections.bottom_right}</span>
+                    </div>
+                  </div>
+                )}
+                {item.notes && <div className="detect-item-notes">{item.notes}</div>}
               </div>
             ))}
           </div>

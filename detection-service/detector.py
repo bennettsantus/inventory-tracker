@@ -19,34 +19,61 @@ from models import (
     DetectedObject,
     DetectionResponse,
     DetectionSummary,
+    SectionCounts,
 )
 
 logger = logging.getLogger(__name__)
 
+# Map confidence level strings to numeric scores
+CONFIDENCE_MAP = {"high": 0.95, "medium": 0.75, "low": 0.4}
+
+SYSTEM_PROMPT = (
+    "You are an expert inventory counter with perfect precision. When counting items, you must:\n"
+    "1. Divide the image into a 3x3 grid (9 sections)\n"
+    "2. Count items in each section separately and show your work\n"
+    "3. Sum the sections and verify the total makes sense\n"
+    "4. Provide a confidence score based on image clarity and item visibility\n"
+    "5. Always respond in valid JSON format"
+)
+
 VISION_PROMPT = """Count and identify every product in this image for restaurant inventory.
 
-COUNTING INSTRUCTIONS:
-1. Identify each distinct product type (brand + size + container).
-2. For each type, count every unit individually — mentally number them "1, 2, 3..." going left-to-right, top-to-bottom.
-3. Include partially hidden items if any part is visible.
-4. After your first count, recount each type to verify.
+Use the GRID METHOD — mentally divide the image into a 3x3 grid and count each product type per section:
+- Top-left | Top-center | Top-right
+- Middle-left | Middle-center | Middle-right
+- Bottom-left | Bottom-center | Bottom-right
+
+For each distinct product type, count units in EACH section, then sum for the total.
 
 Return ONLY this JSON (no markdown, no explanation):
 {
   "items": [
     {
       "class_name": "Coca-Cola 12oz can",
-      "count": 6,
-      "confidence": 0.95,
-      "description": "2 rows of 3, all fully visible"
+      "sections": {
+        "top_left": 0,
+        "top_center": 0,
+        "top_right": 0,
+        "middle_left": 0,
+        "middle_center": 0,
+        "middle_right": 0,
+        "bottom_left": 0,
+        "bottom_center": 0,
+        "bottom_right": 0
+      },
+      "total": 0,
+      "confidence": "high",
+      "notes": "any counting challenges"
     }
   ]
 }
 
+Rules:
 - "class_name": Brand, size, container type (e.g., "Pepsi 12oz can"). Use generic names if brand unclear.
-- "count": Exact number. Be precise.
-- "confidence": 0.0-1.0 for identification AND count accuracy.
-- "description": How arranged, counting notes.
+- "sections": Count of THIS item type in each grid section. The sum MUST equal "total".
+- "total": Exact total count. Verify it equals the sum of all 9 sections.
+- "confidence": "high" (clearly visible, easy count), "medium" (some obstruction/overlap), or "low" (significant uncertainty).
+- "notes": Mention any counting challenges (hidden items, overlapping, unclear brands).
 - Group identical products. Do NOT list each unit separately.
 - Empty image = {"items": []}"""
 
@@ -99,7 +126,7 @@ class VisionDetector:
         return b64_str, "image/jpeg", orig_w, orig_h
 
     def _parse_response(self, text: str, conf_thresh: float) -> list[dict]:
-        """Parse Claude's JSON response, filtering by confidence threshold."""
+        """Parse Claude's grid-based JSON response, validate sections, filter by confidence."""
         cleaned = text.strip()
         if cleaned.startswith("```"):
             lines = cleaned.split("\n")
@@ -110,14 +137,38 @@ class VisionDetector:
 
         results = []
         for item in items:
-            conf = float(item.get("confidence", 0.5))
-            if conf < conf_thresh:
+            confidence_level = str(item.get("confidence", "medium")).lower()
+            if confidence_level not in CONFIDENCE_MAP:
+                confidence_level = "medium"
+            conf_numeric = CONFIDENCE_MAP[confidence_level]
+
+            if conf_numeric < conf_thresh:
                 continue
+
+            sections = item.get("sections", {})
+            section_sum = sum(int(v) for v in sections.values()) if sections else 0
+            stated_total = int(item.get("total", 0))
+
+            # Trust the section sum over the stated total if they disagree
+            if sections and section_sum > 0 and section_sum != stated_total:
+                logger.warning(
+                    f"Section sum {section_sum} != stated total {stated_total} "
+                    f"for '{item.get('class_name')}'. Using section sum."
+                )
+                total = section_sum
+            elif section_sum > 0:
+                total = section_sum
+            else:
+                total = max(1, stated_total)
+
             results.append({
                 "class_name": str(item.get("class_name", "unknown")),
-                "count": max(1, int(item.get("count", 1))),
-                "confidence": round(conf, 3),
-                "description": item.get("description"),
+                "count": total,
+                "confidence": conf_numeric,
+                "confidence_level": confidence_level,
+                "sections": {k: int(v) for k, v in sections.items()} if sections else {},
+                "notes": item.get("notes"),
+                "needs_review": confidence_level == "low",
             })
         return results
 
@@ -146,6 +197,7 @@ class VisionDetector:
             message = self.client.messages.create(
                 model=self.settings.anthropic_model,
                 max_tokens=self.settings.anthropic_max_tokens,
+                system=SYSTEM_PROMPT,
                 thinking={
                     "type": "enabled",
                     "budget_tokens": self.settings.anthropic_thinking_budget,
@@ -188,7 +240,7 @@ class VisionDetector:
 
         try:
             parsed_items = self._parse_response(raw_text, conf_thresh)
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             logger.error(f"Failed to parse vision response: {e}\nRaw: {raw_text[:500]}")
             return DetectionResponse(
                 success=False,
@@ -203,12 +255,16 @@ class VisionDetector:
                 class_id=0,
                 confidence=item["confidence"],
                 bbox=None,
-                description=item.get("description"),
+                description=item.get("notes"),
             ))
             summary.append(DetectionSummary(
                 class_name=item["class_name"],
                 count=item["count"],
                 avg_confidence=item["confidence"],
+                confidence_level=item["confidence_level"],
+                sections=SectionCounts(**item["sections"]) if item.get("sections") else None,
+                notes=item.get("notes"),
+                needs_review=item.get("needs_review", False),
             ))
 
         total_objects = sum(item["count"] for item in parsed_items)
