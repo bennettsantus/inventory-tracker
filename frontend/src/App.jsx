@@ -2459,10 +2459,10 @@ function DetectView({ onAddToInventory }) {
           </svg>
         </div>
         <h2>AI Detection</h2>
-        <p className="detect-subtitle">YOLOv10 Object Detection</p>
-        <div className="detect-status">Service Starting...</div>
+        <p className="detect-subtitle">Claude Vision Detection</p>
+        <div className="detect-status">Connecting to Service...</div>
         <p className="detect-description">
-          The detection service is initializing. This may take a moment on first load.
+          The detection service is starting up. This may take a moment on first load.
         </p>
         <button className="btn btn-primary" onClick={() => checkHealth().then(setServiceStatus)} style={{ marginTop: '1rem' }}>
           Check Status
