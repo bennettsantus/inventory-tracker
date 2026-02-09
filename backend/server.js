@@ -3,22 +3,31 @@
  *
  * Express.js REST API for Mike's restaurant inventory system.
  * Handles authentication (JWT), inventory CRUD, usage analytics,
- * and waste tracking. All data is stored in PostgreSQL.
+ * waste tracking, inventory counting, suppliers, and dashboard stats.
  *
  * Endpoints:
  *   POST /api/auth/signup     - Create new account
  *   POST /api/auth/login      - Sign in and receive JWT
  *   GET  /api/auth/me         - Get current user info
- *   GET  /api/items           - List all inventory items with analytics
+ *   GET  /api/items           - List items (filters: location, category, below_par)
  *   GET  /api/items/low-stock - List items below minimum threshold
  *   GET  /api/categories      - List distinct categories
  *   GET  /api/items/barcode/:barcode - Look up item by barcode
  *   GET  /api/items/:id       - Get single item
  *   GET  /api/items/:id/usage - Get usage analytics for item
- *   POST /api/items           - Create new item
+ *   POST /api/items           - Create new item (barcode optional)
  *   PUT  /api/items/:id       - Update item
  *   PATCH /api/items/:id/quantity - Quick quantity update
- *   DELETE /api/items/:id     - Delete item
+ *   DELETE /api/items/:id     - Soft-delete item
+ *   POST /api/counts          - Record single inventory count
+ *   POST /api/counts/bulk     - Record multiple counts
+ *   GET  /api/counts/recent   - Recent counts (last 24h)
+ *   GET  /api/counts/history/:itemId - Count history for item
+ *   GET  /api/suppliers       - List suppliers
+ *   POST /api/suppliers       - Create supplier
+ *   PUT  /api/suppliers/:id   - Update supplier
+ *   DELETE /api/suppliers/:id - Soft-delete supplier
+ *   GET  /api/dashboard/stats - Dashboard statistics
  *   POST /api/waste           - Record waste event
  *   GET  /api/waste           - List waste records
  *   GET  /api/waste/analytics - Waste analytics summary
@@ -188,7 +197,21 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 
 app.get('/api/items', authenticateToken, async (req, res) => {
   try {
-    const items = await db.getAllWithAnalytics(req.user.id);
+    const filters = {
+      location: req.query.location || null,
+      category: req.query.category || null,
+      below_par: req.query.below_par === 'true',
+      include_inactive: req.query.include_inactive === 'true'
+    };
+
+    // If no filters, use analytics version for backwards compatibility
+    const hasFilters = filters.location || filters.category || filters.below_par || filters.include_inactive;
+    if (!hasFilters) {
+      const items = await db.getAllWithAnalytics(req.user.id);
+      return res.json(items);
+    }
+
+    const items = await db.getAll(req.user.id, filters);
     res.json(items);
   } catch (error) {
     console.error('Get items error:', error.message);
@@ -280,24 +303,32 @@ app.get('/api/items/:id/usage', authenticateToken, async (req, res) => {
 
 app.post('/api/items', authenticateToken, async (req, res) => {
   try {
-    const { barcode, name, category, unit_type, current_quantity, min_quantity } = req.body;
+    const { barcode, name, category, unit_type, current_quantity, min_quantity,
+            cost_per_unit, par_level, storage_location, supplier_id } = req.body;
 
-    if (!barcode || !name) {
-      return res.status(400).json({ error: 'Barcode and name are required' });
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
     }
 
-    const existing = await db.getByBarcode(barcode, req.user.id);
+    // Auto-generate barcode if not provided
+    const itemBarcode = barcode || `auto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    const existing = await db.getByBarcode(itemBarcode, req.user.id);
     if (existing) {
       return res.status(409).json({ error: 'Item with this barcode already exists' });
     }
 
     const newItem = await db.insert({
-      barcode,
+      barcode: itemBarcode,
       name,
       category: category || 'Uncategorized',
       unit_type: unit_type || 'units',
       current_quantity: Math.max(0, current_quantity || 0),
-      min_quantity: Math.max(0, min_quantity || 0)
+      min_quantity: Math.max(0, min_quantity || 0),
+      cost_per_unit: Math.max(0, cost_per_unit || 0),
+      par_level: Math.max(0, par_level || 0),
+      storage_location: storage_location || 'dry_storage',
+      supplier_id: supplier_id || null
     }, req.user.id);
 
     res.status(201).json(newItem);
@@ -312,7 +343,8 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ error: 'Invalid item ID' });
 
-    const { name, category, unit_type, current_quantity, min_quantity } = req.body;
+    const { name, category, unit_type, current_quantity, min_quantity,
+            cost_per_unit, par_level, storage_location, supplier_id } = req.body;
 
     const existing = await db.getById(id, req.user.id);
     if (!existing) {
@@ -324,7 +356,11 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
       category: category || existing.category,
       unit_type: unit_type || existing.unit_type,
       current_quantity: current_quantity ?? existing.current_quantity,
-      min_quantity: min_quantity ?? existing.min_quantity
+      min_quantity: min_quantity ?? existing.min_quantity,
+      cost_per_unit: cost_per_unit ?? existing.cost_per_unit,
+      par_level: par_level ?? existing.par_level,
+      storage_location: storage_location || existing.storage_location,
+      supplier_id: supplier_id !== undefined ? supplier_id : existing.supplier_id
     }, req.user.id);
 
     res.json(updatedItem);
@@ -370,11 +406,169 @@ app.delete('/api/items/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    await db.deleteItem(id, req.user.id);
+    await db.softDeleteItem(id, req.user.id);
     res.json({ message: 'Item deleted successfully' });
   } catch (error) {
     console.error('Delete item error:', error.message);
     res.status(500).json({ error: 'Failed to delete item' });
+  }
+});
+
+/* === Inventory Counting Endpoints === */
+
+app.post('/api/counts', authenticateToken, async (req, res) => {
+  try {
+    const { item_id, count_value, storage_location, notes } = req.body;
+
+    if (!item_id || count_value === undefined || count_value === null) {
+      return res.status(400).json({ error: 'item_id and count_value are required' });
+    }
+    if (typeof count_value !== 'number' || count_value < 0) {
+      return res.status(400).json({ error: 'count_value must be a non-negative number' });
+    }
+
+    const item = await db.getById(item_id, req.user.id);
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const count = await db.insertCount(item_id, count_value, req.user.id, storage_location || null, notes || null);
+    res.status(201).json(count);
+  } catch (error) {
+    console.error('Record count error:', error.message);
+    res.status(500).json({ error: 'Failed to record count' });
+  }
+});
+
+app.post('/api/counts/bulk', authenticateToken, async (req, res) => {
+  try {
+    const { counts, storage_location } = req.body;
+
+    if (!counts || !Array.isArray(counts) || counts.length === 0) {
+      return res.status(400).json({ error: 'counts array is required and must not be empty' });
+    }
+
+    for (const c of counts) {
+      if (!c.item_id || c.count_value === undefined || c.count_value === null) {
+        return res.status(400).json({ error: 'Each count must have item_id and count_value' });
+      }
+      if (typeof c.count_value !== 'number' || c.count_value < 0) {
+        return res.status(400).json({ error: 'count_value must be a non-negative number' });
+      }
+    }
+
+    const results = await db.bulkInsertCounts(counts, req.user.id, storage_location || null);
+    res.status(201).json({ message: `${results.length} counts recorded`, counts: results });
+  } catch (error) {
+    console.error('Bulk count error:', error.message);
+    res.status(500).json({ error: 'Failed to record counts' });
+  }
+});
+
+app.get('/api/counts/recent', authenticateToken, async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours, 10) || 24;
+    const counts = await db.getRecentCounts(req.user.id, Math.min(hours, 168));
+    res.json(counts);
+  } catch (error) {
+    console.error('Get recent counts error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch recent counts' });
+  }
+});
+
+app.get('/api/counts/history/:itemId', authenticateToken, async (req, res) => {
+  try {
+    const itemId = parseId(req.params.itemId);
+    if (!itemId) return res.status(400).json({ error: 'Invalid item ID' });
+
+    const item = await db.getById(itemId, req.user.id);
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const limit = parseInt(req.query.limit, 10) || 30;
+    const history = await db.getCountHistory(itemId, Math.min(limit, 100));
+    res.json({ item, history });
+  } catch (error) {
+    console.error('Get count history error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch count history' });
+  }
+});
+
+/* === Supplier Endpoints === */
+
+app.get('/api/suppliers', authenticateToken, async (req, res) => {
+  try {
+    const suppliers = await db.getSuppliers(req.user.id);
+    res.json(suppliers);
+  } catch (error) {
+    console.error('Get suppliers error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch suppliers' });
+  }
+});
+
+app.post('/api/suppliers', authenticateToken, async (req, res) => {
+  try {
+    const { name, contact_name, phone, email, notes } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Supplier name is required' });
+    }
+
+    const supplier = await db.insertSupplier({ name, contact_name, phone, email, notes }, req.user.id);
+    res.status(201).json(supplier);
+  } catch (error) {
+    console.error('Create supplier error:', error.message);
+    res.status(500).json({ error: 'Failed to create supplier' });
+  }
+});
+
+app.put('/api/suppliers/:id', authenticateToken, async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid supplier ID' });
+
+    const { name, contact_name, phone, email, notes } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Supplier name is required' });
+    }
+
+    const updated = await db.updateSupplier(id, { name, contact_name, phone, email, notes }, req.user.id);
+    if (!updated) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+    res.json(updated);
+  } catch (error) {
+    console.error('Update supplier error:', error.message);
+    res.status(500).json({ error: 'Failed to update supplier' });
+  }
+});
+
+app.delete('/api/suppliers/:id', authenticateToken, async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid supplier ID' });
+
+    const deleted = await db.softDeleteSupplier(id, req.user.id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+    res.json({ message: 'Supplier deleted successfully' });
+  } catch (error) {
+    console.error('Delete supplier error:', error.message);
+    res.status(500).json({ error: 'Failed to delete supplier' });
+  }
+});
+
+/* === Dashboard Endpoint === */
+
+app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
+  try {
+    const stats = await db.getDashboardStats(req.user.id);
+    res.json(stats);
+  } catch (error) {
+    console.error('Dashboard stats error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch dashboard stats' });
   }
 });
 

@@ -237,6 +237,99 @@ const api = {
     if (!res.ok) throw new Error('Failed to delete item');
     return res.json();
   },
+
+  // Counting endpoints
+  async recordCount(itemId, countValue, location, notes) {
+    const res = await fetch(`${API_BASE}/counts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ item_id: itemId, count_value: countValue, storage_location: location, notes }),
+    });
+    if (!res.ok) throw new Error('Failed to record count');
+    return res.json();
+  },
+
+  async recordBulkCounts(counts, location) {
+    const res = await fetch(`${API_BASE}/counts/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ counts, storage_location: location }),
+    });
+    if (!res.ok) throw new Error('Failed to record counts');
+    return res.json();
+  },
+
+  async getRecentCounts(hours = 24) {
+    const res = await fetch(`${API_BASE}/counts/recent?hours=${hours}`, {
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error('Failed to fetch recent counts');
+    return res.json();
+  },
+
+  async getCountHistory(itemId) {
+    const res = await fetch(`${API_BASE}/counts/history/${itemId}`, {
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error('Failed to fetch count history');
+    return res.json();
+  },
+
+  // Dashboard
+  async getDashboardStats() {
+    const res = await fetch(`${API_BASE}/dashboard/stats`, {
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error('Failed to fetch dashboard stats');
+    return res.json();
+  },
+
+  // Suppliers
+  async getSuppliers() {
+    const res = await fetch(`${API_BASE}/suppliers`, {
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error('Failed to fetch suppliers');
+    return res.json();
+  },
+
+  async createSupplier(data) {
+    const res = await fetch(`${API_BASE}/suppliers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to create supplier');
+    return res.json();
+  },
+
+  async updateSupplier(id, data) {
+    const res = await fetch(`${API_BASE}/suppliers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to update supplier');
+    return res.json();
+  },
+
+  async deleteSupplier(id) {
+    const res = await fetch(`${API_BASE}/suppliers/${id}`, {
+      method: 'DELETE',
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error('Failed to delete supplier');
+    return res.json();
+  },
+
+  // Filtered items by location
+  async getItemsByLocation(location) {
+    const res = await fetch(`${API_BASE}/items?location=${encodeURIComponent(location)}`, {
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error('Failed to fetch items');
+    return res.json();
+  },
 };
 
 // Barcode Scanner Component - Using isolated scanner instance
@@ -547,6 +640,18 @@ const getStockPercentage = (current, min) => {
 
 const getCategoryIcon = (category) => CATEGORY_ICONS[category] || '📦';
 
+// Relative time helper
+const getTimeAgo = (dateStr) => {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
+
 // Item Form Modal
 function ItemModal({ item, barcode, lookupData, onSave, onClose, onDelete, categories, onAddCategory }) {
   // Use lookupData to pre-fill form for new items
@@ -557,18 +662,26 @@ function ItemModal({ item, barcode, lookupData, onSave, onClose, onDelete, categ
     current_quantity: item?.current_quantity || 0,
     min_quantity: item?.min_quantity || 0,
     barcode: item?.barcode || barcode || '',
+    cost_per_unit: item?.cost_per_unit || 0,
+    par_level: item?.par_level || 0,
+    storage_location: item?.storage_location || 'dry_storage',
+    supplier_id: item?.supplier_id || '',
   });
   const [saving, setSaving] = useState(false);
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategory, setNewCategory] = useState('');
   const [isLookedUp, setIsLookedUp] = useState(!!lookupData?.name);
+  const [suppliers, setSuppliers] = useState([]);
+
+  useEffect(() => {
+    api.getSuppliers().then(setSuppliers).catch(() => {});
+  }, []);
 
   const allCategories = [...new Set([...DEFAULT_CATEGORIES, ...categories])].sort();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
-    if (!formData.barcode.trim()) return;
 
     setSaving(true);
     try {
@@ -600,13 +713,12 @@ function ItemModal({ item, barcode, lookupData, onSave, onClose, onDelete, categ
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Barcode *</label>
+            <label>Barcode {item ? '' : '(optional)'}</label>
             <input
               type="text"
               value={formData.barcode}
               onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-              placeholder="Enter barcode"
-              required
+              placeholder="Auto-generated if empty"
               disabled={!!item}
             />
           </div>
@@ -706,6 +818,62 @@ function ItemModal({ item, barcode, lookupData, onSave, onClose, onDelete, categ
                 Alert when stock falls below {formData.min_quantity} {formData.unit_type}
               </div>
             )}
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Par Level</label>
+              <div className="threshold-input-group">
+                <input
+                  type="number"
+                  value={formData.par_level}
+                  onChange={(e) => setFormData({ ...formData, par_level: parseFloat(e.target.value) || 0 })}
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                />
+                <span className="threshold-unit">{formData.unit_type}</span>
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Cost per Unit ($)</label>
+              <input
+                type="number"
+                value={formData.cost_per_unit}
+                onChange={(e) => setFormData({ ...formData, cost_per_unit: parseFloat(e.target.value) || 0 })}
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Storage Location</label>
+              <select
+                value={formData.storage_location}
+                onChange={(e) => setFormData({ ...formData, storage_location: e.target.value })}
+              >
+                <option value="walk_in">Walk-in Cooler</option>
+                <option value="freezer">Freezer</option>
+                <option value="dry_storage">Dry Storage</option>
+                <option value="bar">Bar</option>
+                <option value="prep_area">Prep Area</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Supplier</label>
+              <select
+                value={formData.supplier_id}
+                onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value ? parseInt(e.target.value) : null })}
+              >
+                <option value="">None</option>
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="action-row">
@@ -1736,26 +1904,20 @@ function InventoryList({ items, onItemClick, onAddItem, loading, categories, rec
 }
 
 // Dashboard Component
-function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRestock }) {
+function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRestock, onStartCount, recentCounts }) {
   const totalItems = items.length;
 
   // Get low stock items and sort by urgency (days remaining, then severity)
   const lowStockItems = items
     .filter((i) => i.current_quantity <= i.min_quantity && i.min_quantity > 0)
     .sort((a, b) => {
-      // Items with usage data and fewer days remaining come first
       const aDays = a.usage?.daysRemaining;
       const bDays = b.usage?.daysRemaining;
-
-      // If both have days remaining data, sort by that
       if (aDays !== null && aDays !== undefined && bDays !== null && bDays !== undefined) {
         return aDays - bDays;
       }
-      // Items with days remaining data come before those without
       if (aDays !== null && aDays !== undefined) return -1;
       if (bDays !== null && bDays !== undefined) return 1;
-
-      // Fall back to severity sorting
       return getStockSeverity(b.current_quantity, b.min_quantity) - getStockSeverity(a.current_quantity, a.min_quantity);
     });
 
@@ -1764,13 +1926,22 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
     return status === 'medium';
   });
   const goodStockItems = items.filter((i) => getStockStatus(i.current_quantity, i.min_quantity) === 'good');
-  const categories = [...new Set(items.map((i) => i.category))];
 
-  // Calculate total inventory value (just count for now)
-  const totalUnits = items.reduce((sum, i) => sum + i.current_quantity, 0);
+  // Calculate total inventory value
+  const totalValue = items.reduce((sum, i) => sum + (i.current_quantity * (i.cost_per_unit || 0)), 0);
+
+  // Format currency
+  const formatCurrency = (val) => val >= 1000 ? `$${(val / 1000).toFixed(1)}k` : `$${val.toFixed(0)}`;
 
   return (
     <div>
+      {/* Quick Count CTA */}
+      <button className="dashboard-count-cta" onClick={onStartCount}>
+        <span className="cta-icon">📋</span>
+        <span className="cta-text">Start Quick Count</span>
+        <span className="cta-arrow">→</span>
+      </button>
+
       {/* Prominent Low Stock Alert Banner */}
       {lowStockItems.length > 0 && (
         <div className="alert-banner critical" onClick={() => onNavigate?.('low')}>
@@ -1810,6 +1981,40 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
           <div className="stat-label">In Stock</div>
         </div>
       </div>
+
+      {/* Inventory Value */}
+      {totalValue > 0 && (
+        <div className="dashboard-value-bar">
+          <span className="value-label">Inventory Value</span>
+          <span className="value-amount">{formatCurrency(totalValue)}</span>
+        </div>
+      )}
+
+      {/* Recent Counts Feed */}
+      {recentCounts && recentCounts.length > 0 && (
+        <div className="dashboard-recent-counts">
+          <div className="section-header">
+            <span>Recent Counts</span>
+          </div>
+          <div className="recent-counts-list">
+            {recentCounts.slice(0, 8).map(c => {
+              const timeAgo = getTimeAgo(c.counted_at);
+              return (
+                <div key={c.id} className="recent-count-row">
+                  <span className="rc-name">{c.item_name}</span>
+                  <span className="rc-value">{c.count_value} {c.unit_type}</span>
+                  {c.variance !== null && c.variance !== 0 && (
+                    <span className={`rc-variance ${c.variance > 0 ? 'positive' : 'negative'}`}>
+                      {c.variance > 0 ? '+' : ''}{c.variance}
+                    </span>
+                  )}
+                  <span className="rc-time">{timeAgo}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Low Stock Items - Priority Section */}
       {lowStockItems.length > 0 && (
@@ -2301,6 +2506,415 @@ function guessCategoryFromName(name) {
   return 'Uncategorized';
 }
 
+// === Suppliers View ===
+function SuppliersView({ showAlert }) {
+  const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState(null);
+  const [formData, setFormData] = useState({ name: '', contact_name: '', phone: '', email: '', notes: '' });
+
+  const loadSuppliers = async () => {
+    try {
+      const data = await api.getSuppliers();
+      setSuppliers(data);
+    } catch (err) {
+      showAlert('error', 'Failed to load suppliers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadSuppliers(); }, []);
+
+  const openAdd = () => {
+    setEditingSupplier(null);
+    setFormData({ name: '', contact_name: '', phone: '', email: '', notes: '' });
+    setShowForm(true);
+  };
+
+  const openEdit = (s) => {
+    setEditingSupplier(s);
+    setFormData({ name: s.name, contact_name: s.contact_name || '', phone: s.phone || '', email: s.email || '', notes: s.notes || '' });
+    setShowForm(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.name.trim()) return;
+    try {
+      if (editingSupplier) {
+        await api.updateSupplier(editingSupplier.id, formData);
+        showAlert('success', 'Supplier updated');
+      } else {
+        await api.createSupplier(formData);
+        showAlert('success', 'Supplier added');
+      }
+      setShowForm(false);
+      await loadSuppliers();
+    } catch (err) {
+      showAlert('error', err.message);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await api.deleteSupplier(id);
+      showAlert('success', 'Supplier removed');
+      await loadSuppliers();
+    } catch (err) {
+      showAlert('error', 'Failed to delete supplier');
+    }
+  };
+
+  if (loading) return <div className="qc-loading">Loading suppliers...</div>;
+
+  return (
+    <div className="suppliers-view">
+      <div className="suppliers-header">
+        <h2>Suppliers</h2>
+        <button className="btn btn-primary" onClick={openAdd}>+ Add Supplier</button>
+      </div>
+
+      {suppliers.length === 0 ? (
+        <div className="empty-state">
+          <p>No suppliers yet</p>
+          <p style={{ fontSize: '0.875rem' }}>Add your first supplier to link them to inventory items</p>
+        </div>
+      ) : (
+        <div className="suppliers-list">
+          {suppliers.map(s => (
+            <div key={s.id} className="supplier-card" onClick={() => openEdit(s)}>
+              <div className="supplier-info">
+                <div className="supplier-name">{s.name}</div>
+                {s.contact_name && <div className="supplier-contact">{s.contact_name}</div>}
+                <div className="supplier-meta">
+                  {s.phone && <span>{s.phone}</span>}
+                  {s.email && <span>{s.email}</span>}
+                </div>
+                {s.notes && <div className="supplier-notes">{s.notes}</div>}
+              </div>
+              <button className="supplier-delete-btn" onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}>
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showForm && (
+        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{editingSupplier ? 'Edit Supplier' : 'New Supplier'}</h2>
+              <button className="modal-close" onClick={() => setShowForm(false)}>×</button>
+            </div>
+            <div className="form-group">
+              <label>Name *</label>
+              <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Sysco" autoFocus />
+            </div>
+            <div className="form-group">
+              <label>Contact Name</label>
+              <input type="text" value={formData.contact_name} onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })} placeholder="Primary contact" />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Phone</label>
+                <input type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="555-123-4567" />
+              </div>
+              <div className="form-group">
+                <label>Email</label>
+                <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="email@supplier.com" />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Notes</label>
+              <input type="text" value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Delivery schedule, special instructions..." />
+            </div>
+            <div className="action-row">
+              <button className="btn btn-success" onClick={handleSave} disabled={!formData.name.trim()}>
+                {editingSupplier ? 'Update' : 'Add Supplier'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === Storage Location Config ===
+const STORAGE_LOCATIONS = [
+  { id: 'walk_in', label: 'Walk-in', icon: '🧊' },
+  { id: 'freezer', label: 'Freezer', icon: '❄️' },
+  { id: 'dry_storage', label: 'Dry Storage', icon: '📦' },
+  { id: 'bar', label: 'Bar', icon: '🥤' },
+  { id: 'prep_area', label: 'Prep Area', icon: '🔪' },
+];
+
+// === QuickCountView Component ===
+function QuickCountView({ items, onCountsSubmitted, showAlert }) {
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [locationItems, setLocationItems] = useState([]);
+  const [countValues, setCountValues] = useState({});
+  const [countNotes, setCountNotes] = useState({});
+  const [expandedNotes, setExpandedNotes] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [submitResult, setSubmitResult] = useState(null);
+
+  // Load items when location is selected
+  useEffect(() => {
+    if (!selectedLocation) {
+      setLocationItems([]);
+      setCountValues({});
+      setCountNotes({});
+      setExpandedNotes({});
+      setSubmitResult(null);
+      return;
+    }
+
+    const loadLocationItems = async () => {
+      setIsLoading(true);
+      try {
+        const data = await api.getItemsByLocation(selectedLocation);
+        setLocationItems(data);
+        // Pre-fill count values with empty (not the current quantity — user needs to count fresh)
+        const vals = {};
+        data.forEach(item => { vals[item.id] = ''; });
+        setCountValues(vals);
+      } catch (err) {
+        showAlert('error', 'Failed to load items for this location');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadLocationItems();
+  }, [selectedLocation]);
+
+  const countedCount = Object.values(countValues).filter(v => v !== '' && v !== null && v !== undefined).length;
+  const totalCount = locationItems.length;
+
+  const handleCountChange = (itemId, value) => {
+    setCountValues(prev => ({ ...prev, [itemId]: value }));
+  };
+
+  const handleAdjust = (itemId, delta) => {
+    setCountValues(prev => {
+      const current = prev[itemId] === '' ? 0 : parseFloat(prev[itemId]) || 0;
+      const newVal = Math.max(0, current + delta);
+      return { ...prev, [itemId]: newVal };
+    });
+  };
+
+  const handleSubmit = async () => {
+    const counts = [];
+    for (const item of locationItems) {
+      const val = countValues[item.id];
+      if (val !== '' && val !== null && val !== undefined) {
+        counts.push({
+          item_id: item.id,
+          count_value: parseFloat(val) || 0,
+          notes: countNotes[item.id] || null,
+        });
+      }
+    }
+
+    if (counts.length === 0) {
+      showAlert('error', 'No items have been counted yet');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await api.recordBulkCounts(counts, selectedLocation);
+      setSubmitResult({
+        count: result.counts.length,
+        variances: result.counts.map(c => ({
+          ...c,
+          itemName: locationItems.find(i => i.id === c.item_id)?.name || 'Unknown',
+        })),
+      });
+      if (onCountsSubmitted) onCountsSubmitted();
+      showAlert('success', `${result.counts.length} counts recorded successfully`);
+    } catch (err) {
+      showAlert('error', 'Failed to submit counts: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleContinue = () => {
+    setSelectedLocation(null);
+    setSubmitResult(null);
+  };
+
+  // --- Submit result screen ---
+  if (submitResult) {
+    const withVariance = submitResult.variances.filter(v => v.variance && v.variance !== 0);
+    return (
+      <div className="quick-count">
+        <div className="qc-success">
+          <div className="qc-success-icon">✓</div>
+          <h2>{submitResult.count} Counts Recorded</h2>
+          <p className="qc-success-location">
+            {STORAGE_LOCATIONS.find(l => l.id === selectedLocation)?.icon}{' '}
+            {STORAGE_LOCATIONS.find(l => l.id === selectedLocation)?.label}
+          </p>
+
+          {withVariance.length > 0 && (
+            <div className="qc-variance-summary">
+              <h3>Variance Summary</h3>
+              {withVariance.map(v => (
+                <div key={v.id} className={`qc-variance-row ${v.variance > 0 ? 'positive' : 'negative'}`}>
+                  <span className="qc-variance-name">{v.itemName}</span>
+                  <span className="qc-variance-value">
+                    {v.variance > 0 ? '+' : ''}{v.variance}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="qc-success-actions">
+            <button className="btn btn-success qc-btn-large" onClick={handleContinue}>
+              Count Another Location
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Location selection screen ---
+  if (!selectedLocation) {
+    return (
+      <div className="quick-count">
+        <h2 className="qc-title">Quick Count</h2>
+        <p className="qc-subtitle">Select a storage location to start counting</p>
+        <div className="qc-location-grid">
+          {STORAGE_LOCATIONS.map(loc => {
+            const locItemCount = items.filter(i => i.storage_location === loc.id && i.is_active !== false).length;
+            return (
+              <button
+                key={loc.id}
+                className="qc-location-btn"
+                onClick={() => setSelectedLocation(loc.id)}
+              >
+                <span className="qc-location-icon">{loc.icon}</span>
+                <span className="qc-location-label">{loc.label}</span>
+                <span className="qc-location-count">{locItemCount} items</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // --- Count entry screen ---
+  const currentLoc = STORAGE_LOCATIONS.find(l => l.id === selectedLocation);
+
+  return (
+    <div className="quick-count">
+      <div className="qc-header">
+        <button className="qc-back-btn" onClick={() => setSelectedLocation(null)}>
+          ← Back
+        </button>
+        <div className="qc-header-info">
+          <h2>{currentLoc?.icon} {currentLoc?.label}</h2>
+          <span className="qc-progress">{countedCount} of {totalCount} counted</span>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="qc-progress-bar">
+        <div
+          className="qc-progress-fill"
+          style={{ width: totalCount > 0 ? `${(countedCount / totalCount) * 100}%` : '0%' }}
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="qc-loading">Loading items...</div>
+      ) : locationItems.length === 0 ? (
+        <div className="qc-empty">
+          <p>No items assigned to this location yet.</p>
+          <p className="qc-empty-hint">Add items to inventory and set their storage location to see them here.</p>
+        </div>
+      ) : (
+        <>
+          <div className="qc-items-list">
+            {locationItems.map(item => {
+              const hasCount = countValues[item.id] !== '' && countValues[item.id] !== null && countValues[item.id] !== undefined;
+              return (
+                <div key={item.id} className={`qc-item ${hasCount ? 'counted' : ''}`}>
+                  <div className="qc-item-main">
+                    <div className="qc-item-info">
+                      <span className="qc-item-name">{item.name}</span>
+                      <span className="qc-item-last">
+                        Last: {item.current_quantity} {item.unit_type}
+                      </span>
+                    </div>
+                    <div className="qc-item-input-group">
+                      <button
+                        className="qc-adjust-btn minus"
+                        onClick={() => handleAdjust(item.id, -1)}
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        className="qc-count-input"
+                        value={countValues[item.id] ?? ''}
+                        onChange={(e) => handleCountChange(item.id, e.target.value === '' ? '' : parseFloat(e.target.value))}
+                        placeholder="—"
+                        min="0"
+                        inputMode="decimal"
+                      />
+                      <button
+                        className="qc-adjust-btn plus"
+                        onClick={() => handleAdjust(item.id, 1)}
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="qc-item-unit">{item.unit_type}</span>
+                  </div>
+                  <button
+                    className="qc-notes-toggle"
+                    onClick={() => setExpandedNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+                  >
+                    {expandedNotes[item.id] ? 'Hide notes' : '+ Note'}
+                  </button>
+                  {expandedNotes[item.id] && (
+                    <input
+                      type="text"
+                      className="qc-note-input"
+                      value={countNotes[item.id] || ''}
+                      onChange={(e) => setCountNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                      placeholder="Add a note..."
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="qc-submit-bar">
+            <button
+              className="btn btn-success qc-btn-large"
+              onClick={handleSubmit}
+              disabled={isSubmitting || countedCount === 0}
+            >
+              {isSubmitting ? 'Submitting...' : `Submit ${countedCount} Count${countedCount !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // === DetectView Component ===
 function DetectView({ onAddToInventory }) {
   const [mode, setMode] = useState('upload');
@@ -2732,6 +3346,7 @@ function AppContent() {
   const [showScanSuccess, setShowScanSuccess] = useState(false);
   const [stockFilter, setStockFilter] = useState(null); // 'low', 'medium', 'good', or null
   const [cameFromQuickUpdate, setCameFromQuickUpdate] = useState(false);
+  const [dashRecentCounts, setDashRecentCounts] = useState([]);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
@@ -2913,6 +3528,11 @@ function AppContent() {
     try {
       const data = await api.getItems();
       setItems(data);
+      // Also load recent counts for dashboard
+      try {
+        const counts = await api.getRecentCounts(24);
+        setDashRecentCounts(counts);
+      } catch (e) { /* non-critical */ }
     } catch (err) {
       showAlert('error', 'Failed to load inventory');
     } finally {
@@ -3115,6 +3735,12 @@ function AppContent() {
           Home
         </button>
         <button
+          className={`nav-btn ${view === 'count' ? 'active' : ''}`}
+          onClick={() => setView('count')}
+        >
+          Count
+        </button>
+        <button
           className={`nav-btn ${view === 'detect' ? 'active' : ''}`}
           onClick={() => setView('detect')}
         >
@@ -3146,6 +3772,12 @@ function AppContent() {
           onClick={() => setView('waste')}
         >
           Waste
+        </button>
+        <button
+          className={`nav-btn ${view === 'suppliers' ? 'active' : ''}`}
+          onClick={() => setView('suppliers')}
+        >
+          Suppliers
         </button>
       </nav>
 
@@ -3266,6 +3898,8 @@ function AppContent() {
           onNavigate={handleNavigateToInventory}
           onEditThreshold={handleEditThreshold}
           onAddToRestock={addToRestockList}
+          onStartCount={() => setView('count')}
+          recentCounts={dashRecentCounts}
         />
       )}
 
@@ -3282,6 +3916,18 @@ function AppContent() {
 
       {view === 'waste' && (
         <WasteReport onItemClick={handleItemClick} />
+      )}
+
+      {view === 'suppliers' && (
+        <SuppliersView showAlert={showAlert} />
+      )}
+
+      {view === 'count' && (
+        <QuickCountView
+          items={items}
+          onCountsSubmitted={loadItems}
+          showAlert={showAlert}
+        />
       )}
 
       {view === 'detect' && (

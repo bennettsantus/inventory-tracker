@@ -6,14 +6,19 @@
  * queries throughout to prevent SQL injection.
  *
  * Schema:
- *   users          - User accounts with bcrypt-hashed passwords
- *   items          - Inventory items, scoped per user via user_id
- *   usage_history  - Tracks quantity consumed over time (auto-recorded on quantity decrease)
- *   waste_log      - Manually logged waste events with reason and cost
+ *   users            - User accounts with bcrypt-hashed passwords and role
+ *   items            - Inventory items, scoped per user via user_id
+ *   suppliers        - Vendor/supplier contacts, scoped per user
+ *   inventory_counts - Formal count history with variance tracking
+ *   usage_history    - Tracks quantity consumed over time (auto-recorded on quantity decrease)
+ *   waste_log        - Manually logged waste events with reason and cost
  *   delivery_schedule - Delivery patterns (reserved for future use)
  *
  * Key relationships:
  *   users 1:N items (user_id FK)
+ *   users 1:N suppliers (user_id FK)
+ *   suppliers 1:N items (supplier_id FK, SET NULL on delete)
+ *   items 1:N inventory_counts (item_id FK, CASCADE delete)
  *   items 1:N usage_history (item_id FK, CASCADE delete)
  *   items 1:N waste_log (item_id FK, CASCADE delete)
  */
@@ -120,6 +125,55 @@ async function initDatabase() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_usage_item ON usage_history(item_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_waste_item ON waste_log(item_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_usage_date ON usage_history(recorded_at)`);
+
+    // === Wave 1 schema additions (backwards-compatible) ===
+
+    // Extend users with role
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'staff'`);
+
+    // Extend items with cost, par level, storage location, supplier, soft-delete
+    await client.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS cost_per_unit REAL DEFAULT 0`);
+    await client.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS par_level REAL DEFAULT 0`);
+    await client.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS storage_location TEXT DEFAULT 'dry_storage'`);
+    await client.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS supplier_id INTEGER`);
+    await client.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
+
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_items_location ON items(storage_location)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_items_supplier ON items(supplier_id)`);
+
+    // Suppliers table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS suppliers (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        contact_name TEXT,
+        phone TEXT,
+        email TEXT,
+        notes TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_suppliers_user ON suppliers(user_id)`);
+
+    // Inventory counts table - formal count history with variance tracking
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS inventory_counts (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+        count_value REAL NOT NULL,
+        counted_by INTEGER REFERENCES users(id),
+        counted_at TIMESTAMPTZ DEFAULT NOW(),
+        storage_location TEXT,
+        notes TEXT,
+        previous_count REAL,
+        variance REAL
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_counts_item ON inventory_counts(item_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_counts_date ON inventory_counts(counted_at)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_counts_user ON inventory_counts(counted_by)`);
   } finally {
     client.release();
   }
@@ -127,11 +181,33 @@ async function initDatabase() {
 
 /* === Item Queries === */
 
-/** Get all items for a user, sorted by category then name. */
-async function getAll(userId) {
+/**
+ * Get items for a user with optional filters.
+ * By default excludes soft-deleted items (is_active=false).
+ */
+async function getAll(userId, filters = {}) {
+  const conditions = ['user_id = $1'];
+  const params = [userId];
+  let idx = 2;
+
+  if (!filters.include_inactive) {
+    conditions.push('is_active = true');
+  }
+  if (filters.location) {
+    conditions.push(`storage_location = $${idx++}`);
+    params.push(filters.location);
+  }
+  if (filters.category) {
+    conditions.push(`category = $${idx++}`);
+    params.push(filters.category);
+  }
+  if (filters.below_par) {
+    conditions.push('current_quantity < par_level AND par_level > 0');
+  }
+
   const { rows } = await pool.query(
-    'SELECT * FROM items WHERE user_id = $1 ORDER BY category, name',
-    [userId]
+    `SELECT * FROM items WHERE ${conditions.join(' AND ')} ORDER BY category, name`,
+    params
   );
   return rows;
 }
@@ -163,25 +239,39 @@ async function getLowStock(userId) {
   return rows;
 }
 
-/** Insert a new inventory item. */
+/** Insert a new inventory item (with Wave 1 fields). */
 async function insert(item, userId) {
   const { rows } = await pool.query(
-    `INSERT INTO items (user_id, barcode, name, category, unit_type, current_quantity, min_quantity, last_updated)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+    `INSERT INTO items (user_id, barcode, name, category, unit_type, current_quantity, min_quantity,
+       cost_per_unit, par_level, storage_location, supplier_id, last_updated)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
      RETURNING *`,
-    [userId, item.barcode, item.name, item.category, item.unit_type, item.current_quantity, item.min_quantity]
+    [
+      userId, item.barcode, item.name, item.category, item.unit_type,
+      item.current_quantity, item.min_quantity,
+      item.cost_per_unit || 0,
+      item.par_level || 0,
+      item.storage_location || 'dry_storage',
+      item.supplier_id || null
+    ]
   );
   return rows[0];
 }
 
-/** Update an existing inventory item's fields. */
+/** Update an existing inventory item's fields (with Wave 1 fields). */
 async function update(id, item, userId) {
   const { rows } = await pool.query(
     `UPDATE items
-     SET name = $1, category = $2, unit_type = $3, current_quantity = $4, min_quantity = $5, last_updated = NOW()
-     WHERE id = $6 AND user_id = $7
+     SET name = $1, category = $2, unit_type = $3, current_quantity = $4, min_quantity = $5,
+         cost_per_unit = $6, par_level = $7, storage_location = $8, supplier_id = $9,
+         last_updated = NOW()
+     WHERE id = $10 AND user_id = $11
      RETURNING *`,
-    [item.name, item.category, item.unit_type, item.current_quantity, item.min_quantity, id, userId]
+    [
+      item.name, item.category, item.unit_type, item.current_quantity, item.min_quantity,
+      item.cost_per_unit, item.par_level, item.storage_location, item.supplier_id,
+      id, userId
+    ]
   );
   return rows[0] || null;
 }
@@ -270,13 +360,13 @@ async function getDailyAverage(itemId, days = 30) {
 }
 
 /**
- * Get all items with usage analytics attached.
+ * Get all active items with usage analytics attached.
  * NOTE: This queries each item's usage individually (N+1 pattern).
  * Acceptable for small inventories (<500 items). For larger datasets,
  * consider a single JOIN query with window functions.
  */
 async function getAllWithAnalytics(userId) {
-  const items = await getAll(userId);
+  const items = await getAll(userId, { include_inactive: false });
   const results = [];
 
   for (const item of items) {
@@ -438,6 +528,226 @@ async function verifyPassword(email, password) {
   return { id: user.id, email: user.email, name: user.name };
 }
 
+/* === Soft Delete === */
+
+/** Soft-delete an item (set is_active=false instead of removing). */
+async function softDeleteItem(id, userId) {
+  const { rows } = await pool.query(
+    `UPDATE items SET is_active = false, last_updated = NOW() WHERE id = $1 AND user_id = $2 RETURNING *`,
+    [id, userId]
+  );
+  return rows[0] || null;
+}
+
+/* === Inventory Counting === */
+
+/**
+ * Record a single inventory count.
+ * Gets previous count, calculates variance, updates item's current_quantity.
+ */
+async function insertCount(itemId, countValue, userId, location, notes) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get current quantity as previous count
+    const { rows: itemRows } = await client.query(
+      'SELECT current_quantity FROM items WHERE id = $1',
+      [itemId]
+    );
+    const previousCount = itemRows[0] ? itemRows[0].current_quantity : 0;
+    const variance = countValue - previousCount;
+
+    // Insert count record
+    const { rows: countRows } = await client.query(
+      `INSERT INTO inventory_counts (item_id, count_value, counted_by, storage_location, notes, previous_count, variance)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [itemId, countValue, userId, location, notes, previousCount, variance]
+    );
+
+    // Update item's current quantity
+    await client.query(
+      `UPDATE items SET current_quantity = $1, last_updated = NOW() WHERE id = $2`,
+      [countValue, itemId]
+    );
+
+    await client.query('COMMIT');
+    return countRows[0];
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Record multiple counts in a single transaction.
+ * Each entry: { item_id, count_value, notes? }
+ */
+async function bulkInsertCounts(counts, userId, location) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const results = [];
+
+    for (const c of counts) {
+      const { rows: itemRows } = await client.query(
+        'SELECT current_quantity FROM items WHERE id = $1',
+        [c.item_id]
+      );
+      const previousCount = itemRows[0] ? itemRows[0].current_quantity : 0;
+      const variance = c.count_value - previousCount;
+
+      const { rows: countRows } = await client.query(
+        `INSERT INTO inventory_counts (item_id, count_value, counted_by, storage_location, notes, previous_count, variance)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [c.item_id, c.count_value, userId, location, c.notes || null, previousCount, variance]
+      );
+
+      await client.query(
+        `UPDATE items SET current_quantity = $1, last_updated = NOW() WHERE id = $2`,
+        [c.count_value, c.item_id]
+      );
+
+      results.push(countRows[0]);
+    }
+
+    await client.query('COMMIT');
+    return results;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** Get recent counts (last N hours) for a user's items. */
+async function getRecentCounts(userId, hours = 24) {
+  const { rows } = await pool.query(
+    `SELECT ic.*, i.name as item_name, i.category, i.unit_type
+     FROM inventory_counts ic
+     JOIN items i ON ic.item_id = i.id
+     WHERE i.user_id = $1 AND ic.counted_at >= NOW() - INTERVAL '1 hour' * $2
+     ORDER BY ic.counted_at DESC`,
+    [userId, hours]
+  );
+  return rows;
+}
+
+/** Get count history for a single item. */
+async function getCountHistory(itemId, limit = 30) {
+  const { rows } = await pool.query(
+    `SELECT * FROM inventory_counts WHERE item_id = $1 ORDER BY counted_at DESC LIMIT $2`,
+    [itemId, limit]
+  );
+  return rows;
+}
+
+/* === Dashboard === */
+
+/** Compute dashboard stats for a user. */
+async function getDashboardStats(userId) {
+  // Total active items
+  const { rows: totalRows } = await pool.query(
+    'SELECT COUNT(*) as count FROM items WHERE user_id = $1 AND is_active = true',
+    [userId]
+  );
+
+  // Critical: below min_quantity (reorder threshold)
+  const { rows: criticalRows } = await pool.query(
+    `SELECT COUNT(*) as count FROM items
+     WHERE user_id = $1 AND is_active = true AND current_quantity <= min_quantity AND min_quantity > 0`,
+    [userId]
+  );
+
+  // Items to order: below par_level but above min_quantity
+  const { rows: orderRows } = await pool.query(
+    `SELECT COUNT(*) as count FROM items
+     WHERE user_id = $1 AND is_active = true AND par_level > 0
+       AND current_quantity < par_level AND current_quantity > min_quantity`,
+    [userId]
+  );
+
+  // In stock: at or above par_level
+  const { rows: inStockRows } = await pool.query(
+    `SELECT COUNT(*) as count FROM items
+     WHERE user_id = $1 AND is_active = true AND (par_level = 0 OR current_quantity >= par_level)`,
+    [userId]
+  );
+
+  // Total inventory value
+  const { rows: valueRows } = await pool.query(
+    `SELECT COALESCE(SUM(current_quantity * cost_per_unit), 0) as total_value
+     FROM items WHERE user_id = $1 AND is_active = true`,
+    [userId]
+  );
+
+  // Recent counts (last 10)
+  const { rows: recentCounts } = await pool.query(
+    `SELECT ic.id, ic.count_value, ic.previous_count, ic.variance, ic.counted_at,
+            i.name as item_name, i.category, i.unit_type
+     FROM inventory_counts ic
+     JOIN items i ON ic.item_id = i.id
+     WHERE i.user_id = $1
+     ORDER BY ic.counted_at DESC LIMIT 10`,
+    [userId]
+  );
+
+  return {
+    total_items: parseInt(totalRows[0].count),
+    critical_items: parseInt(criticalRows[0].count),
+    items_to_order: parseInt(orderRows[0].count),
+    in_stock: parseInt(inStockRows[0].count),
+    total_inventory_value: parseFloat(valueRows[0].total_value),
+    recent_counts: recentCounts
+  };
+}
+
+/* === Suppliers === */
+
+/** Get active suppliers for a user. */
+async function getSuppliers(userId) {
+  const { rows } = await pool.query(
+    'SELECT * FROM suppliers WHERE user_id = $1 AND is_active = true ORDER BY name',
+    [userId]
+  );
+  return rows;
+}
+
+/** Create a new supplier. */
+async function insertSupplier(supplier, userId) {
+  const { rows } = await pool.query(
+    `INSERT INTO suppliers (user_id, name, contact_name, phone, email, notes)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [userId, supplier.name, supplier.contact_name || null, supplier.phone || null,
+     supplier.email || null, supplier.notes || null]
+  );
+  return rows[0];
+}
+
+/** Update a supplier. */
+async function updateSupplier(id, supplier, userId) {
+  const { rows } = await pool.query(
+    `UPDATE suppliers
+     SET name = $1, contact_name = $2, phone = $3, email = $4, notes = $5
+     WHERE id = $6 AND user_id = $7 AND is_active = true
+     RETURNING *`,
+    [supplier.name, supplier.contact_name, supplier.phone, supplier.email, supplier.notes, id, userId]
+  );
+  return rows[0] || null;
+}
+
+/** Soft-delete a supplier. */
+async function softDeleteSupplier(id, userId) {
+  const { rows } = await pool.query(
+    `UPDATE suppliers SET is_active = false WHERE id = $1 AND user_id = $2 RETURNING *`,
+    [id, userId]
+  );
+  return rows[0] || null;
+}
+
 /* === Exports === */
 
 module.exports = {
@@ -451,6 +761,7 @@ module.exports = {
   update,
   updateQuantity,
   deleteItem,
+  softDeleteItem,
   getCategories,
   recordUsage,
   getUsageHistory,
@@ -459,6 +770,15 @@ module.exports = {
   getWasteHistory,
   getAllWaste,
   getWasteAnalytics,
+  insertCount,
+  bulkInsertCounts,
+  getRecentCounts,
+  getCountHistory,
+  getDashboardStats,
+  getSuppliers,
+  insertSupplier,
+  updateSupplier,
+  softDeleteSupplier,
   createUser,
   getUserByEmail,
   getUserById,
