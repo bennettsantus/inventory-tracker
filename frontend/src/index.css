@@ -323,18 +323,22 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-/* Desktop: nav fits without scroll */
-@media (min-width: 500px) {
+/* Desktop: nav fits all tabs without scroll */
+@media (min-width: 700px) {
   .nav {
     margin-left: 0;
     margin-right: 0;
     border-radius: var(--radius-lg);
     overflow-x: visible;
+    flex-wrap: nowrap;
+    justify-content: center;
   }
 
   .nav-btn {
-    flex: 1;
+    flex: 1 1 0;
     text-align: center;
+    min-width: 0;
+    padding: var(--space-sm) var(--space-md);
   }
 }
 
