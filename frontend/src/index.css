@@ -359,20 +359,20 @@ body {
     flex-shrink: 0;
     background: var(--gray-100);
     border: none;
-    cursor: pointer;
     font-size: 1.5rem;
     font-weight: 700;
-    color: transparent;
-    transition: color 0.25s ease, background 0.25s ease, opacity 0.25s ease;
+    color: var(--text-secondary);
     z-index: 2;
-    opacity: 0.4;
+    opacity: 0;
     pointer-events: none;
+    cursor: default;
+    transition: opacity 0.3s ease;
   }
 
   .nav-arrow.visible {
-    color: var(--text-secondary);
     opacity: 1;
     pointer-events: auto;
+    cursor: pointer;
   }
 
   .nav-arrow.visible:hover {
@@ -396,10 +396,9 @@ body {
 
 :root.dark .nav-arrow {
   background: var(--gray-100);
-  color: var(--text-secondary);
 }
 
-:root.dark .nav-arrow:hover {
+:root.dark .nav-arrow.visible:hover {
   background: var(--gray-700);
   color: var(--text-primary);
 }
