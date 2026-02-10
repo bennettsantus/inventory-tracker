@@ -362,12 +362,20 @@ body {
     cursor: pointer;
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--text-secondary);
-    transition: color 0.15s, background 0.15s;
+    color: transparent;
+    transition: color 0.25s ease, background 0.25s ease, opacity 0.25s ease;
     z-index: 2;
+    opacity: 0.4;
+    pointer-events: none;
   }
 
-  .nav-arrow:hover {
+  .nav-arrow.visible {
+    color: var(--text-secondary);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .nav-arrow.visible:hover {
     color: var(--text-primary);
     background: var(--gray-200);
   }

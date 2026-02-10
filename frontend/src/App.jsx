@@ -3371,9 +3371,13 @@ function NavBar({ view, setView, setStockFilter, restockList }) {
 
   return (
     <div className="nav-wrapper">
-      {canScrollLeft && (
-        <button className="nav-arrow nav-arrow-left" onClick={() => scroll('left')}>‹</button>
-      )}
+      <button
+        className={`nav-arrow nav-arrow-left ${canScrollLeft ? 'visible' : ''}`}
+        onClick={() => scroll('left')}
+        tabIndex={canScrollLeft ? 0 : -1}
+      >
+        ‹
+      </button>
       <nav className="nav" ref={scrollRef}>
         {tabs.map(tab => (
           <button
@@ -3386,9 +3390,13 @@ function NavBar({ view, setView, setStockFilter, restockList }) {
           </button>
         ))}
       </nav>
-      {canScrollRight && (
-        <button className="nav-arrow nav-arrow-right" onClick={() => scroll('right')}>›</button>
-      )}
+      <button
+        className={`nav-arrow nav-arrow-right ${canScrollRight ? 'visible' : ''}`}
+        onClick={() => scroll('right')}
+        tabIndex={canScrollRight ? 0 : -1}
+      >
+        ›
+      </button>
     </div>
   );
 }
