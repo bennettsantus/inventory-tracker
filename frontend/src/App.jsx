@@ -1456,6 +1456,7 @@ function WasteReport({ onItemClick }) {
 
       {wasteRecords.length === 0 && (
         <div className="empty-state">
+          <div className="empty-state-icon">🗑️</div>
           <p>No waste recorded yet</p>
           <p>Log waste from item details to start tracking</p>
         </div>
@@ -1867,7 +1868,7 @@ function InventoryList({ items, onItemClick, onAddItem, loading, categories, rec
 
       {filteredByStock.length === 0 ? (
         <div className="empty-state">
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{stockFilter ? '✓' : '📦'}</div>
+          <div className="empty-state-icon">{stockFilter ? '✓' : '📦'}</div>
           <p>{stockFilter ? `No ${stockFilterLabels[stockFilter].toLowerCase()} items` : 'No inventory items yet'}</p>
           <p style={{ fontSize: '0.875rem' }}>
             {stockFilter ? 'Great job keeping stock levels healthy!' : 'Tap "+ Add Item" to add one manually'}
@@ -2120,6 +2121,7 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
 
       {items.length === 0 && (
         <div className="empty-state">
+          <div className="empty-state-icon">📦</div>
           <p>No inventory items yet</p>
           <p>Go to Scan to add your first item</p>
         </div>
@@ -2177,6 +2179,7 @@ function RestockList({ items, onUpdateQuantity, onRemove, onClear, onItemClick, 
   if (totalItems === 0) {
     return (
       <div className="empty-state">
+        <div className="empty-state-icon">📋</div>
         <p>Your order list is empty</p>
         <p>Add items from the Action Required section</p>
       </div>
@@ -2577,8 +2580,10 @@ function SuppliersView({ showAlert }) {
 
       {suppliers.length === 0 ? (
         <div className="empty-state">
+          <div className="empty-state-icon">🏢</div>
           <p>No suppliers yet</p>
           <p style={{ fontSize: '0.875rem' }}>Add your first supplier to link them to inventory items</p>
+          <button className="btn btn-primary" onClick={openAdd}>+ Add Supplier</button>
         </div>
       ) : (
         <div className="suppliers-list">
@@ -3097,20 +3102,25 @@ function DetectView({ onAddToInventory }) {
     return (
       <div className="detect-placeholder">
         <div className="detect-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="64" height="64">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="48" height="48" style={{ color: 'var(--text-muted)' }}>
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
             <circle cx="8.5" cy="8.5" r="1.5"/>
             <path d="M21 15l-5-5L5 21"/>
           </svg>
         </div>
-        <h2>AI Detection</h2>
-        <p className="detect-subtitle">Claude Vision Detection</p>
-        <div className="detect-status">Connecting to Service...</div>
-        <p className="detect-description">
-          The detection service is starting up. This may take a moment on first load.
+        <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>AI Detection</h2>
+        <p className="detect-subtitle" style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>Claude Vision</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '8px' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+          Connecting to detection service...
+        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+          This may take a moment on first load.
         </p>
-        <button className="btn btn-primary" onClick={() => checkHealth().then(setServiceStatus)} style={{ marginTop: '1rem' }}>
-          Check Status
+        <button className="btn btn-secondary" onClick={() => checkHealth().then(setServiceStatus)}>
+          Retry Connection
         </button>
       </div>
     );
@@ -3326,78 +3336,168 @@ function DetectView({ onAddToInventory }) {
 }
 
 // Main App Component
-// NavBar with scroll arrows on desktop
-function NavBar({ view, setView, setStockFilter, restockList }) {
-  const scrollRef = useRef(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
+// SVG icons for bottom nav
+const NavIcons = {
+  home: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  ),
+  inventory: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+      <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  ),
+  scan: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
+  ),
+  orders: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+      <line x1="9" y1="12" x2="15" y2="12" />
+      <line x1="9" y1="16" x2="15" y2="16" />
+    </svg>
+  ),
+  more: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </svg>
+  ),
+};
 
-  const checkScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 2);
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
-  }, []);
+// More menu icons
+const MoreIcons = {
+  count: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  ),
+  waste: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  ),
+  detect: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" />
+    </svg>
+  ),
+  suppliers: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  darkMode: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  ),
+  lightMode: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </svg>
+  ),
+  signOut: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  ),
+};
 
-  useEffect(() => {
-    checkScroll();
-    const el = scrollRef.current;
-    if (!el) return;
-    el.addEventListener('scroll', checkScroll, { passive: true });
-    window.addEventListener('resize', checkScroll);
-    return () => {
-      el.removeEventListener('scroll', checkScroll);
-      window.removeEventListener('resize', checkScroll);
-    };
-  }, [checkScroll]);
+// Bottom Navigation Bar
+function BottomNav({ view, setView, setStockFilter, restockList, darkMode, onToggleDarkMode, userName, onLogout }) {
+  const [showMore, setShowMore] = useState(false);
 
-  const scroll = (dir) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const amount = el.clientWidth * 0.6;
-    el.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
+  const moreViews = ['count', 'waste', 'detect', 'suppliers'];
+  const isMoreActive = moreViews.includes(view);
+
+  const handleNav = (target) => {
+    if (target === 'list') {
+      setStockFilter(null);
+    }
+    setView(target);
   };
 
-  const tabs = [
-    { id: 'home', label: 'Home' },
-    { id: 'count', label: 'Count' },
-    { id: 'detect', label: 'Detect' },
-    { id: 'scan', label: 'Scan' },
-    { id: 'list', label: 'Inventory', onClick: () => { setStockFilter(null); setView('list'); } },
-    { id: 'restock', label: 'Restock', badge: restockList.length > 0 ? restockList.length : null },
-    { id: 'waste', label: 'Waste' },
-    { id: 'suppliers', label: 'Suppliers' },
-  ];
+  const handleMoreItem = (target) => {
+    setShowMore(false);
+    handleNav(target);
+  };
 
   return (
-    <div className="nav-wrapper">
-      <button
-        className={`nav-arrow nav-arrow-left ${canScrollLeft ? 'visible' : ''}`}
-        onClick={() => scroll('left')}
-        tabIndex={canScrollLeft ? 0 : -1}
-      >
-        ‹
-      </button>
-      <nav className="nav" ref={scrollRef}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            className={`nav-btn ${view === tab.id ? 'active' : ''}`}
-            onClick={tab.onClick || (() => setView(tab.id))}
-          >
-            {tab.label}
-            {tab.badge && <span className="nav-badge">{tab.badge}</span>}
-          </button>
-        ))}
+    <>
+      <nav className="bottom-nav">
+        <button className={`bottom-nav-tab ${view === 'home' ? 'active' : ''}`} onClick={() => handleNav('home')}>
+          {NavIcons.home}
+          <span>Home</span>
+        </button>
+        <button className={`bottom-nav-tab ${view === 'list' ? 'active' : ''}`} onClick={() => handleNav('list')}>
+          {NavIcons.inventory}
+          <span>Inventory</span>
+        </button>
+        <button className={`bottom-nav-tab ${view === 'scan' ? 'active' : ''}`} onClick={() => handleNav('scan')}>
+          {NavIcons.scan}
+          <span>Scan</span>
+        </button>
+        <button className={`bottom-nav-tab ${view === 'restock' ? 'active' : ''}`} onClick={() => handleNav('restock')}>
+          {NavIcons.orders}
+          <span>Orders</span>
+          {restockList.length > 0 && <span className="bottom-nav-badge">{restockList.length}</span>}
+        </button>
+        <button className={`bottom-nav-tab ${isMoreActive || showMore ? 'active' : ''}`} onClick={() => setShowMore(!showMore)}>
+          {NavIcons.more}
+          <span>More</span>
+        </button>
       </nav>
-      <button
-        className={`nav-arrow nav-arrow-right ${canScrollRight ? 'visible' : ''}`}
-        onClick={() => scroll('right')}
-        tabIndex={canScrollRight ? 0 : -1}
-      >
-        ›
-      </button>
-    </div>
+
+      {showMore && (
+        <div className="more-menu-overlay" onClick={() => setShowMore(false)}>
+          <div className="more-menu-sheet" onClick={(e) => e.stopPropagation()}>
+            <h3>More</h3>
+            <button className="more-menu-item" onClick={() => handleMoreItem('count')}>
+              {MoreIcons.count}
+              Quick Count
+            </button>
+            <button className="more-menu-item" onClick={() => handleMoreItem('waste')}>
+              {MoreIcons.waste}
+              Waste Log
+            </button>
+            <button className="more-menu-item" onClick={() => handleMoreItem('detect')}>
+              {MoreIcons.detect}
+              AI Detect
+            </button>
+            <button className="more-menu-item" onClick={() => handleMoreItem('suppliers')}>
+              {MoreIcons.suppliers}
+              Suppliers
+            </button>
+            <div className="more-menu-divider" />
+            <button className="more-menu-item" onClick={() => { onToggleDarkMode(); setShowMore(false); }}>
+              {darkMode ? MoreIcons.lightMode : MoreIcons.darkMode}
+              {darkMode ? 'Light Mode' : 'Dark Mode'}
+            </button>
+            {onLogout && (
+              <button className="more-menu-item danger" onClick={() => { onLogout(); setShowMore(false); }}>
+                {MoreIcons.signOut}
+                Sign Out
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -3786,14 +3886,7 @@ function AppContent() {
   return (
     <div className="app">
       <header className="header">
-        <SettingsMenu
-          darkMode={darkMode}
-          onToggleDarkMode={toggleDarkMode}
-          userName={user?.name}
-          onLogout={handleLogout}
-        />
-        <h1 onClick={() => setView('home')} style={{ cursor: 'pointer' }}>Mike's Inventory Manager</h1>
-        <div className="header-spacer" />
+        <h1 onClick={() => setView('home')}>Mike's Inventory</h1>
       </header>
 
       {alert && (
@@ -3801,8 +3894,6 @@ function AppContent() {
           {alert.message}
         </div>
       )}
-
-      <NavBar view={view} setView={setView} setStockFilter={setStockFilter} restockList={restockList} />
 
       {view === 'scan' && (
         <div>
@@ -3981,6 +4072,17 @@ function AppContent() {
           if (added > 0) setView('list');
         }} />
       )}
+
+      <BottomNav
+        view={view}
+        setView={setView}
+        setStockFilter={setStockFilter}
+        restockList={restockList}
+        darkMode={darkMode}
+        onToggleDarkMode={toggleDarkMode}
+        userName={user?.name}
+        onLogout={handleLogout}
+      />
 
       {showItemModal && (
         <ItemModal
