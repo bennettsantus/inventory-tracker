@@ -3387,9 +3387,9 @@ const MoreIcons = {
       <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   ),
-  detect: (
+  barcode: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" />
+      <path d="M3 5v14" /><path d="M8 5v14" /><path d="M12 5v14" /><path d="M17 5v14" /><path d="M21 5v14" />
     </svg>
   ),
   suppliers: (
@@ -3422,7 +3422,7 @@ const MoreIcons = {
 function BottomNav({ view, setView, setStockFilter, restockList, darkMode, onToggleDarkMode, userName, onLogout }) {
   const [showMore, setShowMore] = useState(false);
 
-  const moreViews = ['count', 'waste', 'detect', 'suppliers'];
+  const moreViews = ['count', 'waste', 'scan', 'suppliers'];
   const isMoreActive = moreViews.includes(view);
 
   const handleNav = (target) => {
@@ -3448,7 +3448,7 @@ function BottomNav({ view, setView, setStockFilter, restockList, darkMode, onTog
           {NavIcons.inventory}
           <span>Inventory</span>
         </button>
-        <button className={`bottom-nav-tab ${view === 'scan' ? 'active' : ''}`} onClick={() => handleNav('scan')}>
+        <button className={`bottom-nav-tab ${view === 'detect' ? 'active' : ''}`} onClick={() => handleNav('detect')}>
           {NavIcons.scan}
           <span>Scan</span>
         </button>
@@ -3475,9 +3475,9 @@ function BottomNav({ view, setView, setStockFilter, restockList, darkMode, onTog
               {MoreIcons.waste}
               Waste Log
             </button>
-            <button className="more-menu-item" onClick={() => handleMoreItem('detect')}>
-              {MoreIcons.detect}
-              AI Detect
+            <button className="more-menu-item" onClick={() => handleMoreItem('scan')}>
+              {MoreIcons.barcode}
+              Barcode Scan
             </button>
             <button className="more-menu-item" onClick={() => handleMoreItem('suppliers')}>
               {MoreIcons.suppliers}
