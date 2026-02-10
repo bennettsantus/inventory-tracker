@@ -3326,6 +3326,73 @@ function DetectView({ onAddToInventory }) {
 }
 
 // Main App Component
+// NavBar with scroll arrows on desktop
+function NavBar({ view, setView, setStockFilter, restockList }) {
+  const scrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    checkScroll();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', checkScroll, { passive: true });
+    window.addEventListener('resize', checkScroll);
+    return () => {
+      el.removeEventListener('scroll', checkScroll);
+      window.removeEventListener('resize', checkScroll);
+    };
+  }, [checkScroll]);
+
+  const scroll = (dir) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const amount = el.clientWidth * 0.6;
+    el.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
+  };
+
+  const tabs = [
+    { id: 'home', label: 'Home' },
+    { id: 'count', label: 'Count' },
+    { id: 'detect', label: 'Detect' },
+    { id: 'scan', label: 'Scan' },
+    { id: 'list', label: 'Inventory', onClick: () => { setStockFilter(null); setView('list'); } },
+    { id: 'restock', label: 'Restock', badge: restockList.length > 0 ? restockList.length : null },
+    { id: 'waste', label: 'Waste' },
+    { id: 'suppliers', label: 'Suppliers' },
+  ];
+
+  return (
+    <div className="nav-wrapper">
+      {canScrollLeft && (
+        <button className="nav-arrow nav-arrow-left" onClick={() => scroll('left')}>‹</button>
+      )}
+      <nav className="nav" ref={scrollRef}>
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`nav-btn ${view === tab.id ? 'active' : ''}`}
+            onClick={tab.onClick || (() => setView(tab.id))}
+          >
+            {tab.label}
+            {tab.badge && <span className="nav-badge">{tab.badge}</span>}
+          </button>
+        ))}
+      </nav>
+      {canScrollRight && (
+        <button className="nav-arrow nav-arrow-right" onClick={() => scroll('right')}>›</button>
+      )}
+    </div>
+  );
+}
+
 function AppContent() {
   // Auth state
   const [user, setUser] = useState(null);
@@ -3727,59 +3794,7 @@ function AppContent() {
         </div>
       )}
 
-      <nav className="nav">
-        <button
-          className={`nav-btn ${view === 'home' ? 'active' : ''}`}
-          onClick={() => setView('home')}
-        >
-          Home
-        </button>
-        <button
-          className={`nav-btn ${view === 'count' ? 'active' : ''}`}
-          onClick={() => setView('count')}
-        >
-          Count
-        </button>
-        <button
-          className={`nav-btn ${view === 'detect' ? 'active' : ''}`}
-          onClick={() => setView('detect')}
-        >
-          Detect
-        </button>
-        <button
-          className={`nav-btn ${view === 'scan' ? 'active' : ''}`}
-          onClick={() => setView('scan')}
-        >
-          Scan
-        </button>
-        <button
-          className={`nav-btn ${view === 'list' ? 'active' : ''}`}
-          onClick={() => { setStockFilter(null); setView('list'); }}
-        >
-          Inventory
-        </button>
-        <button
-          className={`nav-btn ${view === 'restock' ? 'active' : ''}`}
-          onClick={() => setView('restock')}
-        >
-          Restock
-          {restockList.length > 0 && (
-            <span className="nav-badge">{restockList.length}</span>
-          )}
-        </button>
-        <button
-          className={`nav-btn ${view === 'waste' ? 'active' : ''}`}
-          onClick={() => setView('waste')}
-        >
-          Waste
-        </button>
-        <button
-          className={`nav-btn ${view === 'suppliers' ? 'active' : ''}`}
-          onClick={() => setView('suppliers')}
-        >
-          Suppliers
-        </button>
-      </nav>
+      <NavBar view={view} setView={setView} setStockFilter={setStockFilter} restockList={restockList} />
 
       {view === 'scan' && (
         <div>
