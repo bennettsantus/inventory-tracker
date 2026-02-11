@@ -706,6 +706,7 @@ function ItemModal({ item, barcode, lookupData, onSave, onClose, onDelete, categ
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-handle" />
         <div className="modal-header">
           <h2>{item ? 'Edit Item' : 'New Item'}</h2>
           <button className="modal-close" onClick={onClose}>×</button>
@@ -932,6 +933,7 @@ function ThresholdEditModal({ item, onSave, onClose, allItems, onBulkSave, onBac
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-handle" />
         <div className="modal-header">
           {onBack && (
             <button className="modal-back" onClick={onBack}>
@@ -1212,6 +1214,7 @@ function LogWasteModal({ item, onSave, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-handle" />
         <div className="modal-header">
           <h2>Log Waste</h2>
           <button className="modal-close" onClick={onClose}>×</button>
@@ -1519,6 +1522,7 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-handle" />
         <div className="modal-header">
           <h2>Update Stock</h2>
           <button className="modal-close" onClick={onClose}>×</button>
@@ -1908,6 +1912,14 @@ function InventoryList({ items, onItemClick, onAddItem, loading, categories, rec
 function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRestock, onStartCount, recentCounts }) {
   const totalItems = items.length;
 
+  // Time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   // Get low stock items and sort by urgency (days remaining, then severity)
   const lowStockItems = items
     .filter((i) => i.current_quantity <= i.min_quantity && i.min_quantity > 0)
@@ -1934,35 +1946,20 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
   // Format currency
   const formatCurrency = (val) => val >= 1000 ? `$${(val / 1000).toFixed(1)}k` : `$${val.toFixed(0)}`;
 
+  // Dynamic status subtitle
+  const getStatusLine = () => {
+    if (lowStockItems.length > 0) return `${lowStockItems.length} item${lowStockItems.length !== 1 ? 's' : ''} need${lowStockItems.length === 1 ? 's' : ''} attention`;
+    if (items.length === 0) return "Let's get your inventory set up";
+    return 'Everything looks good';
+  };
+
   return (
     <div>
-      {/* Quick Count CTA */}
-      <button className="dashboard-count-cta" onClick={onStartCount}>
-        <span className="cta-icon">📋</span>
-        <span className="cta-text">Start Quick Count</span>
-        <span className="cta-arrow">→</span>
-      </button>
-
-      {/* Prominent Low Stock Alert Banner */}
-      {lowStockItems.length > 0 && (
-        <div className="alert-banner critical" onClick={() => onNavigate?.('low')}>
-          <div className="alert-banner-icon">!</div>
-          <div className="alert-banner-content">
-            <strong>{lowStockItems.length} item{lowStockItems.length !== 1 ? 's' : ''} need restocking</strong>
-            <span>Tap to view and take action</span>
-          </div>
-        </div>
-      )}
-
-      {lowStockItems.length === 0 && items.length > 0 && (
-        <div className="alert-banner safe">
-          <div className="alert-banner-icon">✓</div>
-          <div className="alert-banner-content">
-            <strong>All items well stocked</strong>
-            <span>No items below threshold</span>
-          </div>
-        </div>
-      )}
+      {/* Greeting */}
+      <div style={{ marginBottom: '20px' }}>
+        <h2 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: '2px' }}>{getGreeting()}</h2>
+        <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{getStatusLine()}</p>
+      </div>
 
       <div className="stats-grid">
         <div className="stat-card neutral" onClick={() => onNavigate?.('all')}>
@@ -1971,23 +1968,40 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
         </div>
         <div className={`stat-card ${lowStockItems.length > 0 ? 'critical' : 'safe'}`} onClick={() => onNavigate?.('low')}>
           <div className="stat-value">{lowStockItems.length}</div>
-          <div className="stat-label">Critical</div>
+          <div className="stat-label">Low Stock</div>
         </div>
         <div className="stat-card warning" onClick={() => onNavigate?.('medium')}>
           <div className="stat-value">{mediumStockItems.length}</div>
           <div className="stat-label">Order Soon</div>
         </div>
-        <div className="stat-card safe" onClick={() => onNavigate?.('good')}>
-          <div className="stat-value">{goodStockItems.length}</div>
-          <div className="stat-label">In Stock</div>
-        </div>
+        {totalValue > 0 ? (
+          <div className="stat-card neutral" onClick={() => onNavigate?.('good')}>
+            <div className="stat-value">{formatCurrency(totalValue)}</div>
+            <div className="stat-label">Inventory Value</div>
+          </div>
+        ) : (
+          <div className="stat-card safe" onClick={() => onNavigate?.('good')}>
+            <div className="stat-value">{goodStockItems.length}</div>
+            <div className="stat-label">In Stock</div>
+          </div>
+        )}
       </div>
 
-      {/* Inventory Value */}
-      {totalValue > 0 && (
-        <div className="dashboard-value-bar">
-          <span className="value-label">Inventory Value</span>
-          <span className="value-amount">{formatCurrency(totalValue)}</span>
+      {/* Quick Count CTA */}
+      <button className="dashboard-count-cta" onClick={onStartCount}>
+        <span className="cta-icon">📋</span>
+        <span className="cta-text">Start Quick Count</span>
+        <span className="cta-arrow">→</span>
+      </button>
+
+      {/* Needs Attention Section */}
+      {lowStockItems.length > 0 && (
+        <div className="alert-banner critical" onClick={() => onNavigate?.('low')}>
+          <div className="alert-banner-icon">!</div>
+          <div className="alert-banner-content">
+            <strong>{lowStockItems.length} item{lowStockItems.length !== 1 ? 's' : ''} need restocking</strong>
+            <span>Tap to view and take action</span>
+          </div>
         </div>
       )}
 
@@ -2122,8 +2136,9 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
       {items.length === 0 && (
         <div className="empty-state">
           <div className="empty-state-icon">📦</div>
-          <p>No inventory items yet</p>
-          <p>Go to Scan to add your first item</p>
+          <p>Let's get started</p>
+          <p>Add items to start tracking your inventory</p>
+          <button className="btn btn-primary" onClick={() => onNavigate?.('detect')}>Scan Items</button>
         </div>
       )}
     </div>
@@ -2340,8 +2355,8 @@ function AuthScreen({ onAuth }) {
     <div className="auth-screen">
       <div className="auth-container">
         <div className="auth-header">
-          <h1>Inventory Manager</h1>
-          <p>{mode === 'login' ? 'Sign in to your account' : 'Create a new account'}</p>
+          <h1>Mike's Inventory</h1>
+          <p>{mode === 'login' ? 'Sign in to manage your restaurant.' : 'Create an account to get started.'}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
@@ -2364,7 +2379,7 @@ function AuthScreen({ onAuth }) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder="you@restaurant.com"
               autoComplete="email"
               required
             />
@@ -2376,7 +2391,7 @@ function AuthScreen({ onAuth }) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === 'signup' ? 'At least 6 characters' : 'Your password'}
+              placeholder={mode === 'signup' ? 'Min. 6 characters' : 'Your password'}
               autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
               required
               minLength={mode === 'signup' ? 6 : undefined}
@@ -2403,7 +2418,7 @@ function AuthScreen({ onAuth }) {
             <p>
               Don't have an account?{' '}
               <button type="button" onClick={() => { setMode('signup'); setError(''); }}>
-                Sign up
+                Create one
               </button>
             </p>
           ) : (
@@ -2609,6 +2624,7 @@ function SuppliersView({ showAlert }) {
       {showForm && (
         <div className="modal-overlay" onClick={() => setShowForm(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-handle" />
             <div className="modal-header">
               <h2>{editingSupplier ? 'Edit Supplier' : 'New Supplier'}</h2>
               <button className="modal-close" onClick={() => setShowForm(false)}>×</button>
@@ -3466,6 +3482,7 @@ function BottomNav({ view, setView, setStockFilter, restockList, darkMode, onTog
       {showMore && (
         <div className="more-menu-overlay" onClick={() => setShowMore(false)}>
           <div className="more-menu-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="more-menu-handle" />
             <h3>More</h3>
             <button className="more-menu-item" onClick={() => handleMoreItem('count')}>
               {MoreIcons.count}
@@ -3484,10 +3501,13 @@ function BottomNav({ view, setView, setStockFilter, restockList, darkMode, onTog
               Suppliers
             </button>
             <div className="more-menu-divider" />
-            <button className="more-menu-item" onClick={() => { onToggleDarkMode(); setShowMore(false); }}>
-              {darkMode ? MoreIcons.lightMode : MoreIcons.darkMode}
-              {darkMode ? 'Light Mode' : 'Dark Mode'}
-            </button>
+            <div className="more-menu-toggle">
+              <span className="more-menu-toggle-label">
+                {darkMode ? MoreIcons.lightMode : MoreIcons.darkMode}
+                {darkMode ? 'Light Mode' : 'Dark Mode'}
+              </span>
+              <button className={`toggle-switch ${darkMode ? 'active' : ''}`} onClick={onToggleDarkMode} />
+            </div>
             {onLogout && (
               <button className="more-menu-item danger" onClick={() => { onLogout(); setShowMore(false); }}>
                 {MoreIcons.signOut}
@@ -3887,6 +3907,11 @@ function AppContent() {
     <div className="app">
       <header className="header">
         <h1 onClick={() => setView('home')}>Mike's Inventory</h1>
+        {user?.name && (
+          <div className="header-avatar" title={user.name}>
+            {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+          </div>
+        )}
       </header>
 
       {alert && (
