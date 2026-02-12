@@ -422,7 +422,7 @@ function ScannerView({ onScan, onStop }) {
           className={`flash-toggle-btn ${flashOn ? 'flash-on' : ''}`}
           title={flashOn ? 'Turn off flash' : 'Turn on flash'}
         >
-          {flashOn ? '🔦' : '💡'}
+          {flashOn ? SvgIcons.flashOn('#f59e0b') : SvgIcons.flashlight('#64748b')}
         </button>
       )}
     </div>
@@ -584,17 +584,68 @@ function CustomDropdown({ value, options, onChange }) {
 }
 
 // Category icons mapping
-const CATEGORY_ICONS = {
-  'Uncategorized': '📦',
-  'Produce': '🥬',
-  'Dairy': '🧀',
-  'Meat': '🥩',
-  'Seafood': '🦐',
-  'Dry Goods': '🥫',
-  'Beverages': '🥤',
-  'Frozen': '🧊',
-  'Supplies': '🧹',
+// SVG icon components for categories (clean vector style)
+const SvgIcons = {
+  box: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+  leaf: (color = '#16a34a') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>,
+  milk: (color = '#2563eb') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2h8l2 4v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6l2-4z"/><path d="M6 6h12"/></svg>,
+  meat: (color = '#dc2626') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15.5 2.5c2.5 0 5 2 5 5s-3 4-3 7-1 5-4 5-4-2-4-5 1-4-1-7c-1.5-2.5 1-5 3.5-5z"/><circle cx="14" cy="10" r="1"/></svg>,
+  fish: (color = '#0891b2') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 12c3-6 10-6 14-2-4 4-11 4-14-2z"/><path d="M6.5 12c-3-6-3.5-3-5 0 1.5 3 2 6 5 0z"/><circle cx="16" cy="10" r="0.5" fill={color}/></svg>,
+  can: (color = '#d97706') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M6 8h12"/><path d="M6 16h12"/></svg>,
+  cup: (color = '#7c3aed') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>,
+  snowflake: (color = '#0284c7') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/><line x1="19.07" y1="4.93" x2="4.93" y2="19.07"/></svg>,
+  broom: (color = '#78716c') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v8"/><path d="M4.93 10.93l2.83 2.83"/><path d="M19.07 10.93l-2.83 2.83"/><path d="M8 21h8"/><path d="M12 10c-4 0-7 3-7 7h14c0-4-3-7-7-7z"/></svg>,
+  cart: (color = '#16a34a') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>,
+  edit: (color = '#d97706') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+  truck: (color = '#2563eb') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
+  warning: (color = '#dc2626') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  search: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+  grid: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+  clipboard: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>,
+  knife: (color = '#ef4444') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21l10-10"/><path d="M13 11V3l8 8h-8z"/></svg>,
+  calendar: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  bacteria: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="M4.93 4.93l2.12 2.12"/><path d="M16.95 16.95l2.12 2.12"/><path d="M4.93 19.07l2.12-2.12"/><path d="M16.95 7.05l2.12-2.12"/></svg>,
+  heartCrack: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/><path d="M12 5.67L10 12l4 1-2 6"/></svg>,
+  cooking: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4"/><path d="M8 4v2"/><path d="M16 4v2"/><rect x="4" y="8" width="16" height="4" rx="1"/><path d="M6 12v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6"/></svg>,
+  droplet: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>,
+  thumbsDown: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>,
+  note: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+  bell: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
+  bellOff: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
+  check: (color = '#16a34a') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+  camera: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>,
+  flashlight: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M8.5 8.5l-4.5 1 3-3z"/><path d="M15.5 15.5l1-4.5-3 3z"/><circle cx="12" cy="12" r="1"/></svg>,
+  flashOn: (color = '#f59e0b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+  trash: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+  user: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+  building: (color = '#64748b') => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><line x1="8" y1="6" x2="8" y2="6.01"/><line x1="12" y1="6" x2="12" y2="6.01"/><line x1="16" y1="6" x2="16" y2="6.01"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/></svg>,
 };
+
+const CATEGORY_ICON_MAP = {
+  'Uncategorized': 'box',
+  'Produce': 'leaf',
+  'Dairy': 'milk',
+  'Meat': 'meat',
+  'Seafood': 'fish',
+  'Dry Goods': 'can',
+  'Beverages': 'cup',
+  'Frozen': 'snowflake',
+  'Supplies': 'broom',
+};
+
+const CATEGORY_COLORS = {
+  'Uncategorized': '#64748b',
+  'Produce': '#16a34a',
+  'Dairy': '#2563eb',
+  'Meat': '#dc2626',
+  'Seafood': '#0891b2',
+  'Dry Goods': '#d97706',
+  'Beverages': '#7c3aed',
+  'Frozen': '#0284c7',
+  'Supplies': '#78716c',
+};
+
+const CATEGORY_ICONS = CATEGORY_ICON_MAP;
 
 // Default categories
 const DEFAULT_CATEGORIES = [
@@ -638,7 +689,24 @@ const getStockPercentage = (current, min) => {
   return Math.round((current / min) * 100);
 };
 
-const getCategoryIcon = (category) => CATEGORY_ICONS[category] || '📦';
+const getCategoryIcon = (category) => getCategorySvgIcon(category);
+
+// Returns SVG icon inside a colored circle div
+const getCategorySvgIcon = (category) => {
+  const iconKey = CATEGORY_ICON_MAP[category] || 'box';
+  const color = CATEGORY_COLORS[category] || '#64748b';
+  const iconFn = SvgIcons[iconKey] || SvgIcons.box;
+  return (
+    <div style={{
+      width: 48, height: 48, borderRadius: 12,
+      background: color + '18',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      {iconFn(color)}
+    </div>
+  );
+};
 
 // Relative time helper
 const getTimeAgo = (dateStr) => {
@@ -945,7 +1013,7 @@ function ThresholdEditModal({ item, onSave, onClose, allItems, onBulkSave, onBac
         </div>
 
         <div className="item-header-card">
-          <div className="item-icon">{getCategoryIcon(item?.category)}</div>
+          <div className="item-icon">{getCategorySvgIcon(item?.category)}</div>
           <div className="item-details">
             <div className="item-title">{item?.name}</div>
             <div className="item-subtitle">Current stock: {item?.current_quantity} {item?.unit_type}</div>
@@ -980,17 +1048,17 @@ function ThresholdEditModal({ item, onSave, onClose, allItems, onBulkSave, onBac
           <div className="preview-header">
             {threshold === 0 ? (
               <>
-                <span className="preview-icon">🔕</span>
+                <span className="preview-icon">{SvgIcons.bellOff('#94a3b8')}</span>
                 <span>Alerts disabled for this item</span>
               </>
             ) : item?.current_quantity <= threshold ? (
               <>
-                <span className="preview-icon">⚠️</span>
+                <span className="preview-icon">{SvgIcons.warning('#dc2626')}</span>
                 <span>Will show alert immediately</span>
               </>
             ) : (
               <>
-                <span className="preview-icon">✓</span>
+                <span className="preview-icon">{SvgIcons.check('#16a34a')}</span>
                 <span>Alert when below {threshold} {item?.unit_type}</span>
               </>
             )}
@@ -1180,13 +1248,13 @@ function UsageAnalytics({ item, onClose }) {
 
 // Waste reasons
 const WASTE_REASONS = [
-  { value: 'expired', label: 'Expired', icon: '📅' },
-  { value: 'spoiled', label: 'Spoiled', icon: '🦠' },
-  { value: 'damaged', label: 'Damaged', icon: '💔' },
-  { value: 'overprepped', label: 'Over-prepared', icon: '🍳' },
-  { value: 'dropped', label: 'Dropped/Spilled', icon: '💧' },
-  { value: 'quality', label: 'Quality Issue', icon: '👎' },
-  { value: 'other', label: 'Other', icon: '📝' },
+  { value: 'expired', label: 'Expired', iconKey: 'calendar', iconColor: '#d97706' },
+  { value: 'spoiled', label: 'Spoiled', iconKey: 'bacteria', iconColor: '#16a34a' },
+  { value: 'damaged', label: 'Damaged', iconKey: 'heartCrack', iconColor: '#dc2626' },
+  { value: 'overprepped', label: 'Over-prepared', iconKey: 'cooking', iconColor: '#f59e0b' },
+  { value: 'dropped', label: 'Dropped/Spilled', iconKey: 'droplet', iconColor: '#3b82f6' },
+  { value: 'quality', label: 'Quality Issue', iconKey: 'thumbsDown', iconColor: '#64748b' },
+  { value: 'other', label: 'Other', iconKey: 'note', iconColor: '#64748b' },
 ];
 
 // Log Waste Modal
@@ -1221,7 +1289,7 @@ function LogWasteModal({ item, onSave, onClose }) {
         </div>
 
         <div className="item-header-card">
-          <div className="item-icon">{getCategoryIcon(item.category)}</div>
+          <div className="item-icon">{getCategorySvgIcon(item.category)}</div>
           <div className="item-details">
             <div className="item-title">{item.name}</div>
             <div className="item-subtitle">Current stock: {item.current_quantity} {item.unit_type}</div>
@@ -1251,7 +1319,7 @@ function LogWasteModal({ item, onSave, onClose }) {
                   className={`waste-reason-btn ${reason === r.value ? 'selected' : ''}`}
                   onClick={() => setReason(r.value)}
                 >
-                  <span className="reason-icon">{r.icon}</span>
+                  <span className="reason-icon">{SvgIcons[r.iconKey]?.(r.iconColor)}</span>
                   <span className="reason-label">{r.label}</span>
                 </button>
               ))}
@@ -1340,7 +1408,10 @@ function WasteReport({ onItemClick }) {
   }
 
   const reasonLabel = (reason) => WASTE_REASONS.find(r => r.value === reason)?.label || reason;
-  const reasonIcon = (reason) => WASTE_REASONS.find(r => r.value === reason)?.icon || '📝';
+  const reasonIcon = (reason) => {
+    const r = WASTE_REASONS.find(r => r.value === reason);
+    return r ? SvgIcons[r.iconKey]?.(r.iconColor) : SvgIcons.note('#64748b');
+  };
 
   return (
     <div className="waste-report">
@@ -1459,7 +1530,7 @@ function WasteReport({ onItemClick }) {
 
       {wasteRecords.length === 0 && (
         <div className="empty-state">
-          <div className="empty-state-icon">🗑️</div>
+          <div className="empty-state-icon">{SvgIcons.trash('#94a3b8')}</div>
           <p>No waste recorded yet</p>
           <p>Log waste from item details to start tracking</p>
         </div>
@@ -1529,7 +1600,7 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
         </div>
 
         <div className="item-header-card">
-          <div className="item-icon">{getCategoryIcon(item.category)}</div>
+          <div className="item-icon">{getCategorySvgIcon(item.category)}</div>
           <div className="item-details">
             <div className="item-title">{item.name}</div>
             <div className="item-subtitle">{item.category} • {item.barcode}</div>
@@ -1541,7 +1612,7 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
         {item.category === 'Uncategorized' && (
           <div className="uncategorized-warning">
             <div className="uncategorized-header">
-              <span>📦</span>
+              <span>{SvgIcons.box('#64748b')}</span>
               <span>This item needs a category</span>
             </div>
             {!showCategoryPicker ? (
@@ -1559,7 +1630,7 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
                           className="category-option"
                           onClick={() => onUpdateCategory?.(item.id, cat)}
                         >
-                          <span className="category-option-icon">{getCategoryIcon(cat)}</span>
+                          <span className="category-option-icon">{SvgIcons[CATEGORY_ICON_MAP[cat] || 'box']?.(CATEGORY_COLORS[cat] || '#64748b')}</span>
                           <span>{cat}</span>
                         </button>
                       ))}
@@ -1602,7 +1673,7 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
         {item.min_quantity === 0 && (
           <div className="no-threshold-warning">
             <div className="no-threshold-header">
-              <span>🔔</span>
+              <span>{SvgIcons.bell('#d97706')}</span>
               <span>No low-stock alert set</span>
             </div>
             <button className="btn btn-secondary" style={{ width: '100%', marginTop: '0.5rem' }} onClick={() => onEditThreshold?.(item)}>
@@ -1627,11 +1698,11 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
               {item.min_quantity > 0 ? `${getStockPercentage(item.current_quantity, item.min_quantity)}% of target` : 'No threshold set'}
             </span>
             <button className="threshold-edit-btn" onClick={() => onEditThreshold?.(item)}>
-              {item.min_quantity > 0 ? '🔔 Alert' : '+ Set Alert'}
+              {item.min_quantity > 0 ? <>{SvgIcons.bell('#d97706')} Alert</> : '+ Set Alert'}
             </button>
           </div>
           {stockStatus === 'low' && (
-            <div className="stock-warning">⚠️ {getStockSeverity(item.current_quantity, item.min_quantity)}% below target</div>
+            <div className="stock-warning">{SvgIcons.warning('#dc2626')} {getStockSeverity(item.current_quantity, item.min_quantity)}% below target</div>
           )}
           {item.usage?.hasData && (
             <div className="usage-info">
@@ -1696,7 +1767,7 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
             {difference === 0 && <span className="change-neutral">No change</span>}
           </div>
           {newStockStatus === 'low' && newTotal > 0 && (
-            <div className="stock-warning">⚠️ Will be below minimum</div>
+            <div className="stock-warning">{SvgIcons.warning('#dc2626')} Will be below minimum</div>
           )}
         </div>
 
@@ -1738,9 +1809,7 @@ function InventoryItemCard({ item, onClick, showThreshold = true }) {
       className="stitch-item-row"
       onClick={() => onClick(item)}
     >
-      <div className="stitch-item-thumb">
-        {getCategoryIcon(item.category)}
-      </div>
+      {getCategorySvgIcon(item.category)}
       <div className="stitch-item-info">
         <div className="stitch-item-name">
           {item.name}
@@ -1837,7 +1906,7 @@ function InventoryList({ items, onItemClick, onAddItem, loading, categories, rec
       {/* Category View */}
       {searchFiltered.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">{stockFilter || searchQuery ? '🔍' : '📦'}</div>
+          <div className="empty-state-icon">{stockFilter || searchQuery ? SvgIcons.search('#94a3b8') : SvgIcons.box('#94a3b8')}</div>
           <p>{searchQuery ? 'No items match your search' : stockFilter ? `No ${stockFilterLabels[stockFilter]?.toLowerCase()} items` : 'No inventory items yet'}</p>
           <p style={{ fontSize: '0.875rem' }}>
             {stockFilter ? 'Great job keeping stock levels healthy!' : searchQuery ? 'Try a different search term' : 'Tap the + button to add items'}
@@ -1919,22 +1988,22 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
     return recentCounts.slice(0, 6).map(c => {
       const variance = c.variance || 0;
       let iconType = 'green';
-      let icon = '🛒';
+      let iconKey = 'cart';
       let desc = `Stock updated to ${c.count_value} ${c.unit_type}`;
       if (variance > 0) {
         iconType = 'green';
-        icon = '🛒';
-        desc = `Added ${variance} ${c.unit_type}`;
+        iconKey = 'cart';
+        desc = `Stock increased by ${variance} units`;
       } else if (variance < 0) {
         iconType = 'amber';
-        icon = '✏️';
-        desc = `Adjusted by ${variance} ${c.unit_type}`;
+        iconKey = 'edit';
+        desc = `Manual adjustment by ${variance} ${c.unit_type}`;
       } else {
         iconType = 'blue';
-        icon = '📦';
+        iconKey = 'truck';
         desc = `Counted at ${c.count_value} ${c.unit_type}`;
       }
-      return { id: c.id, name: c.item_name, desc, icon, iconType, time: getTimeAgo(c.counted_at) };
+      return { id: c.id, name: c.item_name, desc, iconKey, iconType, time: getTimeAgo(c.counted_at) };
     });
   };
 
@@ -1955,7 +2024,7 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
       {/* Low Stock Alert Card */}
       {lowStockItems.length > 0 && (
         <div className="stitch-alert-card" onClick={() => onNavigate?.('low')}>
-          <div className="alert-icon-circle">⚠</div>
+          <div className="alert-icon-circle">{SvgIcons.warning('#ffffff')}</div>
           <div className="alert-text" style={{ flex: 1 }}>
             <span style={{ fontSize: '12px', color: 'var(--status-critical)', fontWeight: 600, display: 'block', marginBottom: '2px' }}>Low Stock Alerts</span>
             <strong>{lowStockItems.length} Items Low</strong>
@@ -1980,7 +2049,7 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
           </div>
           {activityItems.map(a => (
             <div key={a.id} className="stitch-activity-item">
-              <div className={`stitch-activity-icon ${a.iconType}`}>{a.icon}</div>
+              <div className={`stitch-activity-icon ${a.iconType}`}>{SvgIcons[a.iconKey]?.()}</div>
               <div className="stitch-activity-info">
                 <div className="name">{a.name}</div>
                 <div className="desc">{a.desc}</div>
@@ -2049,7 +2118,7 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
 
       {items.length === 0 && (
         <div className="empty-state">
-          <div className="empty-state-icon">📦</div>
+          <div className="empty-state-icon">{SvgIcons.box('#94a3b8')}</div>
           <p>Let's get started</p>
           <p>Add items to start tracking your inventory</p>
           <button className="btn btn-primary" onClick={() => onNavigate?.('detect')}>Scan Items</button>
@@ -2108,7 +2177,7 @@ function RestockList({ items, onUpdateQuantity, onRemove, onClear, onItemClick, 
   if (totalItems === 0) {
     return (
       <div className="empty-state">
-        <div className="empty-state-icon">📋</div>
+        <div className="empty-state-icon">{SvgIcons.clipboard('#94a3b8')}</div>
         <p>Your order list is empty</p>
         <p>Add items from the Action Required section</p>
       </div>
@@ -2381,7 +2450,7 @@ function SettingsMenu({ darkMode, onToggleDarkMode, userName, onLogout }) {
         <div className="settings-dropdown">
           {userName && (
             <div className="settings-user">
-              <span className="user-icon">👤</span>
+              <span className="user-icon">{SvgIcons.user('#64748b')}</span>
               <span className="user-name">{userName}</span>
             </div>
           )}
@@ -2509,7 +2578,7 @@ function SuppliersView({ showAlert }) {
 
       {suppliers.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">🏢</div>
+          <div className="empty-state-icon">{SvgIcons.building('#94a3b8')}</div>
           <p>No suppliers yet</p>
           <p style={{ fontSize: '0.875rem' }}>Add your first supplier to link them to inventory items</p>
           <button className="btn btn-primary" onClick={openAdd}>+ Add Supplier</button>
@@ -2579,11 +2648,11 @@ function SuppliersView({ showAlert }) {
 
 // === Storage Location Config ===
 const STORAGE_LOCATIONS = [
-  { id: 'walk_in', label: 'Walk-in', icon: '🧊' },
-  { id: 'freezer', label: 'Freezer', icon: '❄️' },
-  { id: 'dry_storage', label: 'Dry Storage', icon: '📦' },
-  { id: 'bar', label: 'Bar', icon: '🥤' },
-  { id: 'prep_area', label: 'Prep Area', icon: '🔪' },
+  { id: 'walk_in', label: 'Walk-in Cooler', iconKey: 'snowflake', color: '#16a34a' },
+  { id: 'freezer', label: 'Freezer', iconKey: 'snowflake', color: '#2563eb' },
+  { id: 'dry_storage', label: 'Dry Storage', iconKey: 'can', color: '#d97706' },
+  { id: 'bar', label: 'Main Bar', iconKey: 'cup', color: '#16a34a' },
+  { id: 'prep_area', label: 'Prep Area', iconKey: 'knife', color: '#ef4444' },
 ];
 
 // === QuickCountView Component ===
@@ -2692,7 +2761,7 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
           <div className="qc-success-icon">✓</div>
           <h2>{submitResult.count} Counts Recorded</h2>
           <p className="qc-success-location">
-            {STORAGE_LOCATIONS.find(l => l.id === selectedLocation)?.icon}{' '}
+            {(() => { const loc = STORAGE_LOCATIONS.find(l => l.id === selectedLocation); return loc ? SvgIcons[loc.iconKey]?.(loc.color) : null; })()}{' '}
             {STORAGE_LOCATIONS.find(l => l.id === selectedLocation)?.label}
           </p>
 
@@ -2735,7 +2804,9 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
                 className="qc-location-btn"
                 onClick={() => setSelectedLocation(loc.id)}
               >
-                <span className="qc-location-icon">{loc.icon}</span>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: (loc.color || '#16a34a') + '18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {SvgIcons[loc.iconKey]?.(loc.color)}
+                </div>
                 <span className="qc-location-label">{loc.label}</span>
                 <span className="qc-location-count">{locItemCount} items</span>
               </button>
@@ -2756,7 +2827,7 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
           ← Back
         </button>
         <div className="qc-header-info">
-          <h2>{currentLoc?.icon} {currentLoc?.label}</h2>
+          <h2>{currentLoc && SvgIcons[currentLoc.iconKey]?.(currentLoc.color)} {currentLoc?.label}</h2>
           <span className="qc-progress">{countedCount} of {totalCount} counted</span>
         </div>
       </div>
@@ -3352,7 +3423,7 @@ const MoreIcons = {
 function BottomNav({ view, setView, setStockFilter, restockList, darkMode, onToggleDarkMode, userName, onLogout }) {
   const [showMore, setShowMore] = useState(false);
 
-  const moreViews = ['count', 'waste', 'scan', 'suppliers', 'detect'];
+  const moreViews = ['count', 'waste', 'scan', 'suppliers'];
   const isMoreActive = moreViews.includes(view);
 
   const handleNav = (target) => {
@@ -3382,6 +3453,10 @@ function BottomNav({ view, setView, setStockFilter, restockList, darkMode, onTog
           {NavIcons.orders}
           <span>Orders</span>
           {restockList.length > 0 && <span className="bottom-nav-badge">{restockList.length}</span>}
+        </button>
+        <button className={`bottom-nav-tab ${view === 'detect' ? 'active' : ''}`} onClick={() => handleNav('detect')}>
+          {NavIcons.scan}
+          <span>Detect</span>
         </button>
         <button className={`bottom-nav-tab ${view === 'waste' ? 'active' : ''}`} onClick={() => handleNav('waste')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 16l4-6 4 4 5-8" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -3890,7 +3965,7 @@ function AppContent() {
                   <div key={scan.barcode} className={`recent-scan-item ${status}`}>
                     <div className="recent-scan-main" onClick={() => handleItemClick(currentItem || scan)}>
                       <div className="info">
-                        <div className="icon">{getCategoryIcon(scan.category)}</div>
+                        <div className="icon">{getCategorySvgIcon(scan.category)}</div>
                         <div>
                           <div className="name">{scan.name}</div>
                           <div className="scan-meta">
