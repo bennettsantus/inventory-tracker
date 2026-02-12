@@ -2968,11 +2968,14 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
                   className="qc-location-btn"
                   onClick={() => isEditing ? openEditor(loc) : setSelectedLocation(loc.id)}
                 >
-                  <div style={{ width: 48, height: 48, borderRadius: 12, background: (loc.color || '#16a34a') + '18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div className="qc-location-icon" style={{ width: 56, height: 56, borderRadius: 12, background: (loc.color || '#16a34a') + '18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {SvgIcons[loc.iconKey]?.(loc.color)}
                   </div>
-                  <span className="qc-location-label">{loc.label}</span>
-                  <span className="qc-location-count">{locItemCount} items</span>
+                  <div className="qc-location-text">
+                    <span className="qc-location-label">{loc.label}</span>
+                    <span className="qc-location-count">{locItemCount} items</span>
+                  </div>
+                  {!isEditing && <span className="qc-location-chevron">›</span>}
                 </button>
               </div>
             );
