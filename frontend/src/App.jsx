@@ -1938,7 +1938,7 @@ function InventoryList({ items, onItemClick, onAddItem, loading, categories, rec
 }
 
 // Dashboard Component
-function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRestock, onStartCount, recentCounts }) {
+function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRestock, onStartCount, recentCounts, loading }) {
   const totalItems = items.length;
 
   // Time-based greeting
@@ -2116,7 +2116,7 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
         </div>
       )}
 
-      {items.length === 0 && (
+      {items.length === 0 && !loading && (
         <div className="empty-state">
           <div className="empty-state-icon">{SvgIcons.box('#94a3b8')}</div>
           <p>Let's get started</p>
@@ -4161,6 +4161,7 @@ function AppContent() {
       {view === 'home' && (
         <Dashboard
           items={items}
+          loading={loading}
           onItemClick={handleItemClick}
           onNavigate={handleNavigateToInventory}
           onEditThreshold={handleEditThreshold}
