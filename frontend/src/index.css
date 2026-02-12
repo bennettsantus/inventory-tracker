@@ -3938,7 +3938,7 @@ body {
 .qc-header-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-bottom: 0.25rem;
   padding: 0 0.25rem;
 }
@@ -3963,6 +3963,11 @@ body {
   color: #16a34a;
 }
 
+.qc-loc-wrapper {
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
 .qc-delete-badge {
   position: absolute;
   top: -6px;
@@ -3984,34 +3989,40 @@ body {
   padding: 0;
 }
 
-.qc-reorder-btns {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 0.35rem;
+/* iOS-style wiggle animation in edit mode */
+@keyframes qc-wiggle {
+  0% { transform: rotate(-0.7deg); }
+  50% { transform: rotate(0.7deg); }
+  100% { transform: rotate(-0.7deg); }
 }
 
-.qc-reorder-btns button {
-  background: var(--bg-card);
-  border: 1.5px solid var(--border-color);
-  border-radius: 6px;
-  width: 32px;
-  height: 28px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.qc-wiggle {
+  animation: qc-wiggle 0.3s ease-in-out infinite;
 }
 
-.qc-reorder-btns button:disabled {
+.qc-wiggle:nth-child(2n) {
+  animation-delay: 0.15s;
+}
+
+/* Drag states */
+.qc-dragging {
   opacity: 0.3;
-  cursor: default;
 }
 
-.qc-reorder-btns button:not(:disabled):active {
-  background: var(--gray-200);
+.qc-drag-over {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 2px var(--primary);
+  border-radius: 16px;
+}
+
+.qc-drag-clone {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.85;
+  transform: scale(1.05);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  border-radius: 16px;
 }
 
 .qc-add-location-btn {
@@ -4114,15 +4125,6 @@ body {
 }
 
 /* Dark mode for edit mode elements */
-:root.dark .qc-reorder-btns button {
-  background: var(--gray-800);
-  border-color: var(--gray-600);
-}
-
-:root.dark .qc-reorder-btns button:not(:disabled):active {
-  background: var(--gray-700);
-}
-
 :root.dark .qc-location-editor {
   background: var(--gray-800);
   border-color: var(--gray-600);

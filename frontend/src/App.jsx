@@ -2685,6 +2685,10 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
   const [editName, setEditName] = useState('');
   const [editIconKey, setEditIconKey] = useState('box');
   const [editColor, setEditColor] = useState('#64748b');
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const longPressTimer = useRef(null);
+  const dragNodeRef = useRef(null);
 
   const saveLocations = (locs) => {
     setLocations(locs);
@@ -2719,12 +2723,95 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
     if (editingLocId === loc.id) setEditingLocId(null);
   };
 
-  const handleReorder = (index, direction) => {
-    const newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= locations.length) return;
-    const updated = [...locations];
-    [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
-    saveLocations(updated);
+  // Drag-and-drop reorder handlers
+  const handleDragStart = (e, index) => {
+    setDragIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    dragNodeRef.current = e.target.closest('.qc-loc-wrapper');
+    setTimeout(() => { if (dragNodeRef.current) dragNodeRef.current.classList.add('qc-dragging'); }, 0);
+  };
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIndex !== index) setDragOverIndex(index);
+  };
+  const handleDragEnd = () => {
+    if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
+      const updated = [...locations];
+      const [moved] = updated.splice(dragIndex, 1);
+      updated.splice(dragOverIndex, 0, moved);
+      saveLocations(updated);
+    }
+    if (dragNodeRef.current) dragNodeRef.current.classList.remove('qc-dragging');
+    setDragIndex(null);
+    setDragOverIndex(null);
+    dragNodeRef.current = null;
+  };
+
+  // Touch-based long-press drag for mobile
+  const touchState = useRef({ startIndex: null, el: null, clone: null, startY: 0, startX: 0, moved: false });
+  const handleTouchStart = (e, index) => {
+    const touch = e.touches[0];
+    touchState.current = { startIndex: index, el: e.currentTarget.closest('.qc-loc-wrapper'), startY: touch.clientY, startX: touch.clientX, moved: false, clone: null };
+    longPressTimer.current = setTimeout(() => {
+      touchState.current.moved = true;
+      const el = touchState.current.el;
+      if (el) {
+        el.classList.add('qc-dragging');
+        // Create floating clone
+        const rect = el.getBoundingClientRect();
+        const clone = el.cloneNode(true);
+        clone.className = 'qc-drag-clone';
+        clone.style.width = rect.width + 'px';
+        clone.style.height = rect.height + 'px';
+        clone.style.left = rect.left + 'px';
+        clone.style.top = rect.top + 'px';
+        document.body.appendChild(clone);
+        touchState.current.clone = clone;
+        touchState.current.offsetX = touch.clientX - rect.left;
+        touchState.current.offsetY = touch.clientY - rect.top;
+      }
+    }, 400);
+  };
+  const handleTouchMove = (e, index) => {
+    if (!touchState.current.moved) {
+      const touch = e.touches[0];
+      const dx = Math.abs(touch.clientX - touchState.current.startX);
+      const dy = Math.abs(touch.clientY - touchState.current.startY);
+      if (dx > 10 || dy > 10) { clearTimeout(longPressTimer.current); return; }
+    }
+    if (!touchState.current.moved) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const clone = touchState.current.clone;
+    if (clone) {
+      clone.style.left = (touch.clientX - touchState.current.offsetX) + 'px';
+      clone.style.top = (touch.clientY - touchState.current.offsetY) + 'px';
+    }
+    // Find which element we're over
+    const els = document.querySelectorAll('.qc-loc-wrapper:not(.qc-dragging)');
+    els.forEach((el, i) => {
+      const rect = el.getBoundingClientRect();
+      if (touch.clientX >= rect.left && touch.clientX <= rect.right && touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+        // Adjust index since the dragging item is still in DOM
+        const actualIndex = parseInt(el.dataset.index);
+        if (!isNaN(actualIndex)) setDragOverIndex(actualIndex);
+      }
+    });
+  };
+  const handleTouchEnd = () => {
+    clearTimeout(longPressTimer.current);
+    if (touchState.current.moved && touchState.current.startIndex !== null && dragOverIndex !== null && touchState.current.startIndex !== dragOverIndex) {
+      const updated = [...locations];
+      const [moved] = updated.splice(touchState.current.startIndex, 1);
+      updated.splice(dragOverIndex, 0, moved);
+      saveLocations(updated);
+    }
+    if (touchState.current.el) touchState.current.el.classList.remove('qc-dragging');
+    if (touchState.current.clone) touchState.current.clone.remove();
+    touchState.current = { startIndex: null, el: null, clone: null, startY: 0, startX: 0, moved: false };
+    setDragOverIndex(null);
+    setDragIndex(null);
   };
 
   // Load items when location is selected
@@ -2855,17 +2942,28 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
     return (
       <div className="quick-count">
         <div className="qc-header-row">
-          <h2 className="qc-title" style={{ margin: 0 }}>Quick Count</h2>
+          <div />
           <button className={`qc-edit-toggle${isEditing ? ' active' : ''}`} onClick={() => { setIsEditing(!isEditing); setEditingLocId(null); }}>
             {isEditing ? 'Done' : 'Edit'}
           </button>
         </div>
-        <p className="qc-subtitle">{isEditing ? 'Tap a location to edit, or add/remove locations' : 'Select a storage location to start counting'}</p>
+        <p className="qc-subtitle">{isEditing ? 'Hold & drag to reorder. Tap to edit.' : 'Select a storage location to start counting'}</p>
         <div className="qc-location-grid">
           {locations.map((loc, index) => {
             const locItemCount = items.filter(i => i.storage_location === loc.id && i.is_active !== false).length;
             return (
-              <div key={loc.id} style={{ position: 'relative' }}>
+              <div
+                key={loc.id}
+                className={`qc-loc-wrapper${isEditing ? ' qc-wiggle' : ''}${dragOverIndex === index ? ' qc-drag-over' : ''}`}
+                data-index={index}
+                draggable={isEditing}
+                onDragStart={isEditing ? (e) => handleDragStart(e, index) : undefined}
+                onDragOver={isEditing ? (e) => handleDragOver(e, index) : undefined}
+                onDragEnd={isEditing ? handleDragEnd : undefined}
+                onTouchStart={isEditing ? (e) => handleTouchStart(e, index) : undefined}
+                onTouchMove={isEditing ? (e) => handleTouchMove(e, index) : undefined}
+                onTouchEnd={isEditing ? handleTouchEnd : undefined}
+              >
                 {isEditing && (
                   <button className="qc-delete-badge" onClick={(e) => { e.stopPropagation(); handleDeleteLocation(loc); }}>×</button>
                 )}
@@ -2879,12 +2977,6 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
                   <span className="qc-location-label">{loc.label}</span>
                   <span className="qc-location-count">{locItemCount} items</span>
                 </button>
-                {isEditing && (
-                  <div className="qc-reorder-btns">
-                    <button disabled={index === 0} onClick={() => handleReorder(index, -1)}>↑</button>
-                    <button disabled={index === locations.length - 1} onClick={() => handleReorder(index, 1)}>↓</button>
-                  </div>
-                )}
               </div>
             );
           })}
