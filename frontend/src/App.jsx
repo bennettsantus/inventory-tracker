@@ -52,8 +52,8 @@ class ErrorBoundary extends Component {
             onClick={() => window.location.reload()}
             style={{
               padding: '1rem 2rem',
-              background: '#2563eb',
-              color: 'white',
+              background: '#13ec5b',
+              color: '#0f172a',
               border: 'none',
               borderRadius: '12px',
               fontSize: '1rem',
@@ -1827,66 +1827,37 @@ function InventoryList({ items, onItemClick, onAddItem, loading, categories, rec
     );
   }
 
+  const lowCount = items.filter(i => getStockStatus(i.current_quantity, i.min_quantity) === 'low').length;
+  const outCount = items.filter(i => i.current_quantity === 0 && i.min_quantity > 0).length;
+
   return (
     <div>
-      {/* Active Filter Banner */}
-      {stockFilter && (
-        <div className={`filter-banner ${stockFilter}`}>
-          <span className="filter-label">
-            Showing: <strong>{stockFilterLabels[stockFilter]}</strong> ({filteredByStock.length} items)
-          </span>
-          <button className="filter-clear" onClick={onClearFilter}>
-            ✕ Clear Filter
-          </button>
-        </div>
-      )}
-
-      <div className="inventory-controls">
-        <CustomDropdown
-          value={viewMode}
-          options={[
-            { value: 'category', label: 'View by Category' },
-            { value: 'all', label: 'View All' }
-          ]}
-          onChange={setViewMode}
-        />
-        <button className="btn btn-primary" onClick={onAddItem}>
-          + Add Item
+      {/* Filter Pills */}
+      <div className="filter-pills">
+        <button className={`filter-pill ${!stockFilter ? 'active' : ''}`} onClick={onClearFilter}>All Items</button>
+        <button className={`filter-pill ${stockFilter === 'low' ? 'active' : ''}`} onClick={() => onClearFilter && (stockFilter === 'low' ? onClearFilter() : null)}>
+          Low Stock{lowCount > 0 ? ` (${lowCount})` : ''}
         </button>
+        <button className={`filter-pill ${stockFilter === 'good' ? 'active' : ''}`} onClick={() => {}}>Recently Used</button>
       </div>
 
-      {/* Recent Scans Section - only show when no filter */}
-      {!stockFilter && recentScans && recentScans.length > 0 && (
-        <div className="recent-scans-section">
-          <div className="section-header">
-            <span className="section-icon">🕐</span>
-            <span>Recent Scans</span>
-          </div>
-          <div className="inventory-list">
-            {recentScans.map((scan) => (
-              <InventoryItemCard key={`recent-${scan.barcode}`} item={scan} onClick={onItemClick} />
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* Category View */}
       {filteredByStock.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">{stockFilter ? '✓' : '📦'}</div>
-          <p>{stockFilter ? `No ${stockFilterLabels[stockFilter].toLowerCase()} items` : 'No inventory items yet'}</p>
+          <p>{stockFilter ? `No ${stockFilterLabels[stockFilter]?.toLowerCase()} items` : 'No inventory items yet'}</p>
           <p style={{ fontSize: '0.875rem' }}>
-            {stockFilter ? 'Great job keeping stock levels healthy!' : 'Tap "+ Add Item" to add one manually'}
+            {stockFilter ? 'Great job keeping stock levels healthy!' : 'Tap the + button to add items'}
           </p>
         </div>
       ) : viewMode === 'category' ? (
-        /* Category View */
         <div className="category-sections">
           {itemCategories.map((category) => (
             <div key={category} className="category-section">
-              <div className="section-header">
-                <span className="section-icon">{getCategoryIcon(category)}</span>
-                <span>{category}</span>
-                <span className="section-count">{itemsByCategory[category].length}</span>
+              <div className="category-header" onClick={() => setViewMode(viewMode === category ? 'category' : category)}>
+                <span className="chevron expanded">›</span>
+                <span className="category-name">{category}</span>
+                <span className="category-count">{itemsByCategory[category].length}</span>
               </div>
               <div className="inventory-list">
                 {itemsByCategory[category].map((item) => (
@@ -1897,13 +1868,15 @@ function InventoryList({ items, onItemClick, onAddItem, loading, categories, rec
           ))}
         </div>
       ) : (
-        /* All Items View */
         <div className="inventory-list">
           {items.map((item) => (
             <InventoryItemCard key={item.id} item={item} onClick={onItemClick} />
           ))}
         </div>
       )}
+
+      {/* FAB */}
+      <button className="fab" onClick={onAddItem} title="Add Item">+</button>
     </div>
   );
 }
@@ -1953,99 +1926,95 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
     return 'Everything looks good';
   };
 
+  // Build activity feed from recent counts
+  const getActivityItems = () => {
+    if (!recentCounts || recentCounts.length === 0) return [];
+    return recentCounts.slice(0, 6).map(c => {
+      const variance = c.variance || 0;
+      let iconType = 'green';
+      let icon = '🛒';
+      let desc = `Stock updated to ${c.count_value} ${c.unit_type}`;
+      if (variance > 0) {
+        iconType = 'green';
+        icon = '🛒';
+        desc = `Added ${variance} ${c.unit_type}`;
+      } else if (variance < 0) {
+        iconType = 'amber';
+        icon = '✏️';
+        desc = `Adjusted by ${variance} ${c.unit_type}`;
+      } else {
+        iconType = 'blue';
+        icon = '📦';
+        desc = `Counted at ${c.count_value} ${c.unit_type}`;
+      }
+      return { id: c.id, name: c.item_name, desc, icon, iconType, time: getTimeAgo(c.counted_at) };
+    });
+  };
+
+  const activityItems = getActivityItems();
+
   return (
     <div>
-      {/* Greeting */}
-      <div style={{ marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: '2px' }}>{getGreeting()}</h2>
-        <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{getStatusLine()}</p>
+      {/* Stock Value Card */}
+      <div className="stitch-value-card">
+        <div style={{ display: 'flex', alignItems: 'baseline' }}>
+          <span className="value-amount">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span className="stitch-change-badge">↑ +2.4%</span>
+        </div>
+        <div className="value-label">Total Stock Value · Calculated from {totalItems} active items</div>
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card neutral" onClick={() => onNavigate?.('all')}>
-          <div className="stat-value">{totalItems}</div>
-          <div className="stat-label">Total Items</div>
-        </div>
-        <div className={`stat-card ${lowStockItems.length > 0 ? 'critical' : 'safe'}`} onClick={() => onNavigate?.('low')}>
-          <div className="stat-value">{lowStockItems.length}</div>
-          <div className="stat-label">Low Stock</div>
-        </div>
-        <div className="stat-card warning" onClick={() => onNavigate?.('medium')}>
-          <div className="stat-value">{mediumStockItems.length}</div>
-          <div className="stat-label">Order Soon</div>
-        </div>
-        {totalValue > 0 ? (
-          <div className="stat-card neutral" onClick={() => onNavigate?.('good')}>
-            <div className="stat-value">{formatCurrency(totalValue)}</div>
-            <div className="stat-label">Inventory Value</div>
+      {/* Low Stock Alert Card */}
+      {lowStockItems.length > 0 && (
+        <div className="stitch-alert-card" onClick={() => onNavigate?.('low')}>
+          <div className="alert-icon-circle">!</div>
+          <div className="alert-text">
+            <strong>{lowStockItems.length} Item{lowStockItems.length !== 1 ? 's' : ''} Low</strong>
+            <span>Requires immediate reorder</span>
           </div>
-        ) : (
-          <div className="stat-card safe" onClick={() => onNavigate?.('good')}>
-            <div className="stat-value">{goodStockItems.length}</div>
-            <div className="stat-label">In Stock</div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Quick Count CTA */}
-      <button className="dashboard-count-cta" onClick={onStartCount}>
-        <span className="cta-icon">📋</span>
-        <span className="cta-text">Start Quick Count</span>
-        <span className="cta-arrow">→</span>
+      {/* Green CTA */}
+      <button className="stitch-cta" onClick={onStartCount}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Start Inventory Count
       </button>
 
-      {/* Needs Attention Section */}
-      {lowStockItems.length > 0 && (
-        <div className="alert-banner critical" onClick={() => onNavigate?.('low')}>
-          <div className="alert-banner-icon">!</div>
-          <div className="alert-banner-content">
-            <strong>{lowStockItems.length} item{lowStockItems.length !== 1 ? 's' : ''} need restocking</strong>
-            <span>Tap to view and take action</span>
+      {/* Recent Activity Feed */}
+      {activityItems.length > 0 && (
+        <div>
+          <div className="stitch-activity-header">
+            <h3>Recent Activity</h3>
+            <button onClick={() => onNavigate?.('all')}>See All</button>
           </div>
+          {activityItems.map(a => (
+            <div key={a.id} className="stitch-activity-item">
+              <div className={`stitch-activity-icon ${a.iconType}`}>{a.icon}</div>
+              <div className="stitch-activity-info">
+                <div className="name">{a.name}</div>
+                <div className="desc">{a.desc}</div>
+              </div>
+              <div className="stitch-activity-time">{a.time}</div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Recent Counts Feed */}
-      {recentCounts && recentCounts.length > 0 && (
-        <div className="dashboard-recent-counts">
-          <div className="section-header">
-            <span>Recent Counts</span>
-          </div>
-          <div className="recent-counts-list">
-            {recentCounts.slice(0, 8).map(c => {
-              const timeAgo = getTimeAgo(c.counted_at);
-              return (
-                <div key={c.id} className="recent-count-row">
-                  <span className="rc-name">{c.item_name}</span>
-                  <span className="rc-value">{c.count_value} {c.unit_type}</span>
-                  {c.variance !== null && c.variance !== 0 && (
-                    <span className={`rc-variance ${c.variance > 0 ? 'positive' : 'negative'}`}>
-                      {c.variance > 0 ? '+' : ''}{c.variance}
-                    </span>
-                  )}
-                  <span className="rc-time">{timeAgo}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Low Stock Items - Priority Section */}
+      {/* Low Stock Items - Action Required */}
       {lowStockItems.length > 0 && (
-        <div className="alert-section">
+        <div className="alert-section" style={{ marginTop: 'var(--space-6)' }}>
           <div className="section-header critical">
             <span>Action Required</span>
             <span className="section-count">{lowStockItems.length}</span>
           </div>
           <div className="alert-list">
-            {lowStockItems.map((item) => {
+            {lowStockItems.slice(0, 5).map((item) => {
               const percentage = getStockPercentage(item.current_quantity, item.min_quantity);
               const needed = item.min_quantity - item.current_quantity;
               const daysRemaining = item.usage?.daysRemaining;
               const hasUsageData = item.usage?.hasData;
 
-              // Determine severity based on days remaining (if available) or percentage
               let severityClass = 'warning';
               if (daysRemaining !== null && daysRemaining !== undefined) {
                 if (daysRemaining <= 1) severityClass = 'critical';
@@ -2054,16 +2023,11 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
                 severityClass = 'critical';
               }
 
-              // Build status message
               let statusMessage;
               if (daysRemaining !== null && daysRemaining !== undefined) {
-                if (daysRemaining === 0) {
-                  statusMessage = 'Out today';
-                } else if (daysRemaining === 1) {
-                  statusMessage = 'Out tomorrow';
-                } else {
-                  statusMessage = `${daysRemaining} days left`;
-                }
+                if (daysRemaining === 0) statusMessage = 'Out today';
+                else if (daysRemaining === 1) statusMessage = 'Out tomorrow';
+                else statusMessage = `${daysRemaining} days left`;
               } else if (hasUsageData === false) {
                 statusMessage = `Need ${needed} more`;
               } else {
@@ -2075,14 +2039,7 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
                   <div className="alert-card-content" onClick={() => onItemClick?.(item)}>
                     <div className="alert-card-info">
                       <div className="alert-card-name">{item.name}</div>
-                      <div className={`alert-card-status ${severityClass}`}>
-                        {statusMessage}
-                      </div>
-                      {item.usage?.averagePerDay > 0 && (
-                        <div className="alert-card-usage">
-                          Using ~{item.usage.averagePerDay}/{item.unit_type} per day
-                        </div>
-                      )}
+                      <div className={`alert-card-status ${severityClass}`}>{statusMessage}</div>
                     </div>
                     <div className="alert-card-quantity">
                       <span className="current">{item.current_quantity}</span>
@@ -2090,45 +2047,12 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
                     </div>
                   </div>
                   <div className="alert-card-actions">
-                    <button className="alert-btn primary" onClick={(e) => { e.stopPropagation(); onAddToRestock?.(item); }}>
-                      Add to Order
-                    </button>
-                    <button className="alert-btn secondary" onClick={(e) => { e.stopPropagation(); onEditThreshold?.(item); }}>
-                      Adjust
-                    </button>
+                    <button className="alert-btn primary" onClick={(e) => { e.stopPropagation(); onAddToRestock?.(item); }}>Add to Order</button>
+                    <button className="alert-btn secondary" onClick={(e) => { e.stopPropagation(); onEditThreshold?.(item); }}>Adjust</button>
                   </div>
                 </div>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {mediumStockItems.length > 0 && (
-        <div className="alert-section">
-          <div className="section-header warning">
-            <span>Order Soon</span>
-            <span className="section-count">{mediumStockItems.length}</span>
-          </div>
-          <div className="inventory-list">
-            {mediumStockItems.map((item) => (
-              <div
-                key={item.id}
-                className="inventory-item warning"
-                onClick={() => onItemClick?.(item)}
-              >
-                <div className="item-info">
-                  <div className="item-name">{item.name}</div>
-                  <div className="item-meta">
-                    <span className="item-category">{item.category}</span>
-                  </div>
-                </div>
-                <div className="item-quantity">
-                  <div className="quantity-value">{item.current_quantity}</div>
-                  <div className="quantity-unit">{item.unit_type}</div>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}
@@ -3906,7 +3830,25 @@ function AppContent() {
   return (
     <div className="app">
       <header className="header">
-        <h1 onClick={() => setView('home')}>Mike's Inventory</h1>
+        <div onClick={() => setView('home')} style={{ cursor: 'pointer' }}>
+          {view === 'home' ? (
+            <>
+              <div className="header-subtitle">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+              <h1>Hello, {user?.name?.split(' ')[0] || 'there'}!</h1>
+            </>
+          ) : (
+            <h1>
+              {view === 'list' ? 'Inventory' :
+               view === 'restock' ? 'Restock & Orders' :
+               view === 'waste' ? 'Waste Tracking' :
+               view === 'suppliers' ? 'Suppliers' :
+               view === 'count' ? 'Quick Count' :
+               view === 'scan' ? 'Barcode Scan' :
+               view === 'detect' ? 'AI Scan' :
+               "Mike's Inventory"}
+            </h1>
+          )}
+        </div>
         {user?.name && (
           <div className="header-avatar" title={user.name}>
             {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
