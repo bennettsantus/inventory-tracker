@@ -4016,22 +4016,26 @@ body {
 
 /* Drag states */
 .qc-dragging {
-  opacity: 0.3;
+  opacity: 0.2;
+  transition: opacity 0.15s ease;
 }
 
-.qc-drag-over {
-  transform: scale(1.05);
-  box-shadow: 0 0 0 2px var(--primary);
-  border-radius: 16px;
+.qc-drag-over .qc-location-btn {
+  border-color: var(--primary);
+  background: rgba(19, 236, 91, 0.08);
+  transform: scale(1.03);
+  transition: all 0.15s ease;
 }
 
 .qc-drag-clone {
   position: fixed;
+  top: 0;
+  left: 0;
   z-index: 9999;
   pointer-events: none;
-  opacity: 0.85;
-  transform: scale(1.05);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  opacity: 0.9;
+  will-change: transform;
+  filter: drop-shadow(0 8px 20px rgba(0,0,0,0.25));
   border-radius: 16px;
 }
 

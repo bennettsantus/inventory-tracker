@@ -2691,10 +2691,8 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
   const [editName, setEditName] = useState('');
   const [editIconKey, setEditIconKey] = useState('box');
   const [editColor, setEditColor] = useState('#64748b');
-  const [dragIndex, setDragIndex] = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
-  const longPressTimer = useRef(null);
-  const dragNodeRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef({ index: null, overIndex: null, el: null, clone: null, startX: 0, startY: 0, active: false, wasTap: true });
 
   const saveLocations = (locs) => {
     setLocations(locs);
@@ -2729,96 +2727,93 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
     if (editingLocId === loc.id) setEditingLocId(null);
   };
 
-  // Drag-and-drop reorder handlers
-  const handleDragStart = (e, index) => {
-    setDragIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-    dragNodeRef.current = e.target.closest('.qc-loc-wrapper');
-    setTimeout(() => { if (dragNodeRef.current) dragNodeRef.current.classList.add('qc-dragging'); }, 0);
-  };
-  const handleDragOver = (e, index) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragOverIndex !== index) setDragOverIndex(index);
-  };
-  const handleDragEnd = () => {
-    if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
-      const updated = [...locations];
-      const [moved] = updated.splice(dragIndex, 1);
-      updated.splice(dragOverIndex, 0, moved);
-      saveLocations(updated);
-    }
-    if (dragNodeRef.current) dragNodeRef.current.classList.remove('qc-dragging');
-    setDragIndex(null);
-    setDragOverIndex(null);
-    dragNodeRef.current = null;
-  };
-
-  // Touch-based long-press drag for mobile
-  const touchState = useRef({ startIndex: null, el: null, clone: null, startY: 0, startX: 0, moved: false });
+  // Smooth touch drag reorder — activates immediately on move in edit mode
   const handleTouchStart = (e, index) => {
     const touch = e.touches[0];
-    touchState.current = { startIndex: index, el: e.currentTarget.closest('.qc-loc-wrapper'), startY: touch.clientY, startX: touch.clientX, moved: false, clone: null };
-    longPressTimer.current = setTimeout(() => {
-      touchState.current.moved = true;
-      const el = touchState.current.el;
-      if (el) {
-        el.classList.add('qc-dragging');
-        // Create floating clone
-        const rect = el.getBoundingClientRect();
-        const clone = el.cloneNode(true);
-        clone.className = 'qc-drag-clone';
-        clone.style.width = rect.width + 'px';
-        clone.style.height = rect.height + 'px';
-        clone.style.left = rect.left + 'px';
-        clone.style.top = rect.top + 'px';
-        document.body.appendChild(clone);
-        touchState.current.clone = clone;
-        touchState.current.offsetX = touch.clientX - rect.left;
-        touchState.current.offsetY = touch.clientY - rect.top;
-      }
-    }, 400);
+    const el = e.currentTarget.closest('.qc-loc-wrapper');
+    dragRef.current = { index, overIndex: null, el, clone: null, startX: touch.clientX, startY: touch.clientY, active: false, wasTap: true };
   };
-  const handleTouchMove = (e, index) => {
-    if (!touchState.current.moved) {
-      const touch = e.touches[0];
-      const dx = Math.abs(touch.clientX - touchState.current.startX);
-      const dy = Math.abs(touch.clientY - touchState.current.startY);
-      if (dx > 10 || dy > 10) { clearTimeout(longPressTimer.current); return; }
-    }
-    if (!touchState.current.moved) return;
-    e.preventDefault();
+
+  const activateDrag = (touch) => {
+    const d = dragRef.current;
+    d.active = true;
+    d.wasTap = false;
+    setIsDragging(true);
+    const el = d.el;
+    if (!el) return;
+    el.classList.add('qc-dragging');
+    const rect = el.getBoundingClientRect();
+    const clone = el.cloneNode(true);
+    clone.className = 'qc-drag-clone';
+    clone.style.width = rect.width + 'px';
+    clone.style.height = rect.height + 'px';
+    clone.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
+    document.body.appendChild(clone);
+    d.clone = clone;
+    d.offsetX = touch.clientX - rect.left;
+    d.offsetY = touch.clientY - rect.top;
+  };
+
+  const handleTouchMove = useCallback((e) => {
+    const d = dragRef.current;
+    if (d.index === null) return;
     const touch = e.touches[0];
-    const clone = touchState.current.clone;
-    if (clone) {
-      clone.style.left = (touch.clientX - touchState.current.offsetX) + 'px';
-      clone.style.top = (touch.clientY - touchState.current.offsetY) + 'px';
+
+    if (!d.active) {
+      const dx = Math.abs(touch.clientX - d.startX);
+      const dy = Math.abs(touch.clientY - d.startY);
+      if (dx > 8 || dy > 8) {
+        activateDrag(touch);
+      } else {
+        return;
+      }
     }
-    // Find which element we're over
-    const els = document.querySelectorAll('.qc-loc-wrapper:not(.qc-dragging)');
-    els.forEach((el, i) => {
+
+    e.preventDefault();
+    const clone = d.clone;
+    if (clone) {
+      clone.style.transform = `translate3d(${touch.clientX - d.offsetX}px, ${touch.clientY - d.offsetY}px, 0)`;
+    }
+
+    // Hit-test other wrappers directly (no React state updates during drag)
+    const els = document.querySelectorAll('.qc-loc-wrapper');
+    let newOver = null;
+    els.forEach(el => {
+      if (el === d.el) { el.classList.remove('qc-drag-over'); return; }
       const rect = el.getBoundingClientRect();
       if (touch.clientX >= rect.left && touch.clientX <= rect.right && touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
-        // Adjust index since the dragging item is still in DOM
-        const actualIndex = parseInt(el.dataset.index);
-        if (!isNaN(actualIndex)) setDragOverIndex(actualIndex);
+        newOver = parseInt(el.dataset.index);
+        el.classList.add('qc-drag-over');
+      } else {
+        el.classList.remove('qc-drag-over');
       }
     });
-  };
-  const handleTouchEnd = () => {
-    clearTimeout(longPressTimer.current);
-    if (touchState.current.moved && touchState.current.startIndex !== null && dragOverIndex !== null && touchState.current.startIndex !== dragOverIndex) {
-      const updated = [...locations];
-      const [moved] = updated.splice(touchState.current.startIndex, 1);
-      updated.splice(dragOverIndex, 0, moved);
-      saveLocations(updated);
+    d.overIndex = newOver;
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    const d = dragRef.current;
+    if (d.active && d.index !== null && d.overIndex !== null && d.index !== d.overIndex) {
+      setLocations(prev => {
+        const updated = [...prev];
+        const [moved] = updated.splice(d.index, 1);
+        updated.splice(d.overIndex, 0, moved);
+        localStorage.setItem('customStorageLocations', JSON.stringify(updated));
+        return updated;
+      });
     }
-    if (touchState.current.el) touchState.current.el.classList.remove('qc-dragging');
-    if (touchState.current.clone) touchState.current.clone.remove();
-    touchState.current = { startIndex: null, el: null, clone: null, startY: 0, startX: 0, moved: false };
-    setDragOverIndex(null);
-    setDragIndex(null);
-  };
+    if (d.el) d.el.classList.remove('qc-dragging');
+    if (d.clone) d.clone.remove();
+    document.querySelectorAll('.qc-loc-wrapper.qc-drag-over').forEach(el => el.classList.remove('qc-drag-over'));
+    const wasTap = d.wasTap;
+    const tapIndex = d.index;
+    dragRef.current = { index: null, overIndex: null, el: null, clone: null, startX: 0, startY: 0, active: false, wasTap: true };
+    setIsDragging(false);
+    // If it was a tap (no movement), open editor
+    if (wasTap && tapIndex !== null && isEditing) {
+      openEditor(locations[tapIndex]);
+    }
+  }, [locations, isEditing]);
 
   // Load items when location is selected
   useEffect(() => {
@@ -2960,18 +2955,14 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
             return (
               <div
                 key={loc.id}
-                className={`qc-loc-wrapper${isEditing ? ' qc-wiggle' : ''}${dragOverIndex === index ? ' qc-drag-over' : ''}`}
+                className={`qc-loc-wrapper${isEditing && !isDragging ? ' qc-wiggle' : ''}`}
                 data-index={index}
-                draggable={isEditing}
-                onDragStart={isEditing ? (e) => handleDragStart(e, index) : undefined}
-                onDragOver={isEditing ? (e) => handleDragOver(e, index) : undefined}
-                onDragEnd={isEditing ? handleDragEnd : undefined}
                 onTouchStart={isEditing ? (e) => handleTouchStart(e, index) : undefined}
-                onTouchMove={isEditing ? (e) => handleTouchMove(e, index) : undefined}
+                onTouchMove={isEditing ? handleTouchMove : undefined}
                 onTouchEnd={isEditing ? handleTouchEnd : undefined}
               >
                 {isEditing && (
-                  <button className="qc-delete-badge" onClick={(e) => { e.stopPropagation(); handleDeleteLocation(loc); }}>×</button>
+                  <button className="qc-delete-badge" onTouchEnd={(e) => { e.stopPropagation(); }} onClick={(e) => { e.stopPropagation(); handleDeleteLocation(loc); }}>×</button>
                 )}
                 <button
                   className="qc-location-btn"
