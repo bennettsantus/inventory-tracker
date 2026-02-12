@@ -218,8 +218,10 @@ body {
 .app {
   max-width: 600px;
   margin: 0 auto;
-  padding: var(--space-4) var(--space-4) 110px;
+  padding: var(--space-4) var(--space-4) 96px;
   overflow-x: hidden;
+  min-height: 100dvh;
+  box-sizing: border-box;
 }
 
 /* Header */
@@ -296,7 +298,7 @@ body {
   align-items: stretch;
   z-index: 100;
   height: auto;
-  padding-bottom: 32px;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
 }
 
 .bottom-nav-tab {
@@ -3163,7 +3165,7 @@ body {
 
 /* Detection View Styles */
 .detect-view {
-  padding: 0 0 2rem 0;
+  padding: 0;
 }
 
 .detect-mode-toggle {
@@ -3197,11 +3199,18 @@ body {
 .detect-camera-container {
   position: relative;
   width: 100%;
-  min-height: 300px;
+  min-height: 200px;
+  max-height: calc(100dvh - 320px);
   background: var(--gray-900);
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 1rem;
+}
+
+.detect-camera-container video,
+.detect-camera-container img {
+  max-height: calc(100dvh - 320px);
+  object-fit: contain;
 }
 
 .detect-upload-area {
@@ -3209,7 +3218,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
+  min-height: 200px;
   cursor: pointer;
   color: var(--gray-400);
   gap: 1rem;
@@ -3542,6 +3551,7 @@ body {
   cursor: pointer;
   transition: all 0.15s ease;
   min-height: 110px;
+  width: 100%;
 }
 
 .qc-location-btn:active {
