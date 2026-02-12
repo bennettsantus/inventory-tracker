@@ -1728,65 +1728,29 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
   );
 }
 
-// Inventory Item Card Component
+// Inventory Item Card Component — Stitch style
 function InventoryItemCard({ item, onClick, showThreshold = true }) {
   const status = getStockStatus(item.current_quantity, item.min_quantity);
-  const percentage = getStockPercentage(item.current_quantity, item.min_quantity);
-  const severity = getStockSeverity(item.current_quantity, item.min_quantity);
-  const daysRemaining = item.usage?.daysRemaining;
-  const hasUsageData = item.usage?.hasData;
-
-  // Build status indicator text
-  let statusText;
-  if (daysRemaining !== null && daysRemaining !== undefined && status !== 'good') {
-    if (daysRemaining === 0) statusText = 'Out today';
-    else if (daysRemaining === 1) statusText = 'Out tomorrow';
-    else if (daysRemaining <= 3) statusText = `${daysRemaining} days left`;
-    else statusText = `${daysRemaining}d remaining`;
-  } else if (status === 'low') {
-    statusText = `${severity}% below`;
-  } else if (status === 'medium') {
-    statusText = 'Getting low';
-  } else {
-    statusText = hasUsageData && daysRemaining ? `${daysRemaining}d supply` : 'OK';
-  }
+  const isLow = status === 'low';
 
   return (
     <div
-      className={`inventory-item ${status}-stock`}
+      className="stitch-item-row"
       onClick={() => onClick(item)}
-      style={{ cursor: 'pointer' }}
     >
-      <div className="item-info">
-        <div className="item-name">{getCategoryIcon(item.category)} {item.name}</div>
-        <div className="item-meta">
-          <span className="category-badge">{item.category}</span>
-          {item.min_quantity > 0 && showThreshold && (
-            <>
-              <span style={{ color: 'var(--gray-400)' }}>•</span>
-              <span className={`stock-indicator ${status}`}>
-                {statusText}
-              </span>
-            </>
-          )}
-        </div>
+      <div className="stitch-item-thumb">
+        {getCategoryIcon(item.category)}
       </div>
-      <div className={`item-quantity-display ${status}`}>
-        <div className="quantity-fraction">
-          <span className="current">{item.current_quantity}</span>
-          {item.min_quantity > 0 && (
-            <span className="threshold">/ {item.min_quantity}</span>
-          )}
+      <div className="stitch-item-info">
+        <div className="stitch-item-name">
+          {item.name}
+          {isLow && <span className="low-badge">LOW</span>}
         </div>
-        <div className="unit">{item.unit_type}</div>
-        {item.min_quantity > 0 && (
-          <div className="mini-progress">
-            <div
-              className={`mini-progress-fill ${status}`}
-              style={{ width: `${Math.min(100, percentage)}%` }}
-            />
-          </div>
-        )}
+        <div className="stitch-item-unit">{item.unit_type}{item.cost_per_unit ? ` ($${item.cost_per_unit.toFixed(2)})` : ''}</div>
+      </div>
+      <div className="stitch-item-qty">
+        <span className={`stitch-qty-value ${isLow ? 'low' : ''}`}>{item.current_quantity}</span>
+        <span className={`stitch-qty-label ${isLow ? 'low' : ''}`}>{isLow ? 'RESTOCK NOW' : 'CURRENT'}</span>
       </div>
     </div>
   );
@@ -1829,48 +1793,71 @@ function InventoryList({ items, onItemClick, onAddItem, loading, categories, rec
 
   const lowCount = items.filter(i => getStockStatus(i.current_quantity, i.min_quantity) === 'low').length;
   const outCount = items.filter(i => i.current_quantity === 0 && i.min_quantity > 0).length;
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Apply search filter
+  const searchFiltered = searchQuery.trim()
+    ? filteredByStock.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.category.toLowerCase().includes(searchQuery.toLowerCase()))
+    : filteredByStock;
+
+  // Recalculate categories from search-filtered items
+  const displayCategories = [...new Set(searchFiltered.map(i => i.category))].sort();
+  const displayByCategory = displayCategories.reduce((acc, cat) => {
+    acc[cat] = searchFiltered.filter(item => item.category === cat);
+    return acc;
+  }, {});
 
   return (
     <div>
+      {/* Search Bar */}
+      <div className="stitch-search-bar">
+        <svg className="stitch-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input
+          type="text"
+          className="stitch-search-input"
+          placeholder="Search items or categories..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <button className="stitch-scan-btn" onClick={() => {}}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </button>
+      </div>
+
       {/* Filter Pills */}
       <div className="filter-pills">
         <button className={`filter-pill ${!stockFilter ? 'active' : ''}`} onClick={onClearFilter}>All Items</button>
-        <button className={`filter-pill ${stockFilter === 'low' ? 'active' : ''}`} onClick={() => onClearFilter && (stockFilter === 'low' ? onClearFilter() : null)}>
+        <button className={`filter-pill ${stockFilter === 'low' ? 'active' : ''}`} onClick={() => { if (stockFilter === 'low') onClearFilter(); }}>
           Low Stock{lowCount > 0 ? ` (${lowCount})` : ''}
         </button>
-        <button className={`filter-pill ${stockFilter === 'good' ? 'active' : ''}`} onClick={() => {}}>Recently Used</button>
+        <button className={`filter-pill ${stockFilter === 'out' ? 'active' : ''}`} onClick={() => {}}>Out of Stock</button>
+        <button className={`filter-pill ${stockFilter === 'recent' ? 'active' : ''}`} onClick={() => {}}>Recently Used</button>
       </div>
 
       {/* Category View */}
-      {filteredByStock.length === 0 ? (
+      {searchFiltered.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">{stockFilter ? '✓' : '📦'}</div>
-          <p>{stockFilter ? `No ${stockFilterLabels[stockFilter]?.toLowerCase()} items` : 'No inventory items yet'}</p>
+          <div className="empty-state-icon">{stockFilter || searchQuery ? '🔍' : '📦'}</div>
+          <p>{searchQuery ? 'No items match your search' : stockFilter ? `No ${stockFilterLabels[stockFilter]?.toLowerCase()} items` : 'No inventory items yet'}</p>
           <p style={{ fontSize: '0.875rem' }}>
-            {stockFilter ? 'Great job keeping stock levels healthy!' : 'Tap the + button to add items'}
+            {stockFilter ? 'Great job keeping stock levels healthy!' : searchQuery ? 'Try a different search term' : 'Tap the + button to add items'}
           </p>
         </div>
-      ) : viewMode === 'category' ? (
+      ) : (
         <div className="category-sections">
-          {itemCategories.map((category) => (
+          {displayCategories.map((category) => (
             <div key={category} className="category-section">
-              <div className="category-header" onClick={() => setViewMode(viewMode === category ? 'category' : category)}>
-                <span className="chevron expanded">›</span>
-                <span className="category-name">{category}</span>
-                <span className="category-count">{itemsByCategory[category].length}</span>
+              <div className="stitch-category-header">
+                <span className="stitch-chevron">›</span>
+                <span className="stitch-category-name">{category.toUpperCase()}</span>
+                <span className="stitch-category-count">{displayByCategory[category].length} ITEMS</span>
               </div>
-              <div className="inventory-list">
-                {itemsByCategory[category].map((item) => (
+              <div className="stitch-items-list">
+                {displayByCategory[category].map((item) => (
                   <InventoryItemCard key={item.id} item={item} onClick={onItemClick} />
                 ))}
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="inventory-list">
-          {items.map((item) => (
-            <InventoryItemCard key={item.id} item={item} onClick={onItemClick} />
           ))}
         </div>
       )}
@@ -1957,21 +1944,24 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
     <div>
       {/* Stock Value Card */}
       <div className="stitch-value-card">
-        <div style={{ display: 'flex', alignItems: 'baseline' }}>
-          <span className="value-amount">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>Total Stock Value</span>
           <span className="stitch-change-badge">↑ +2.4%</span>
         </div>
-        <div className="value-label">Total Stock Value · Calculated from {totalItems} active items</div>
+        <div className="value-amount">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+        <div className="value-label">Calculated from {totalItems} active items</div>
       </div>
 
       {/* Low Stock Alert Card */}
       {lowStockItems.length > 0 && (
         <div className="stitch-alert-card" onClick={() => onNavigate?.('low')}>
-          <div className="alert-icon-circle">!</div>
-          <div className="alert-text">
-            <strong>{lowStockItems.length} Item{lowStockItems.length !== 1 ? 's' : ''} Low</strong>
+          <div className="alert-icon-circle">⚠</div>
+          <div className="alert-text" style={{ flex: 1 }}>
+            <span style={{ fontSize: '12px', color: 'var(--status-critical)', fontWeight: 600, display: 'block', marginBottom: '2px' }}>Low Stock Alerts</span>
+            <strong>{lowStockItems.length} Items Low</strong>
             <span>Requires immediate reorder</span>
           </div>
+          <span style={{ color: 'var(--status-critical)', fontSize: '18px' }}>›</span>
         </div>
       )}
 
@@ -3362,7 +3352,7 @@ const MoreIcons = {
 function BottomNav({ view, setView, setStockFilter, restockList, darkMode, onToggleDarkMode, userName, onLogout }) {
   const [showMore, setShowMore] = useState(false);
 
-  const moreViews = ['count', 'waste', 'scan', 'suppliers'];
+  const moreViews = ['count', 'waste', 'scan', 'suppliers', 'detect'];
   const isMoreActive = moreViews.includes(view);
 
   const handleNav = (target) => {
@@ -3388,18 +3378,18 @@ function BottomNav({ view, setView, setStockFilter, restockList, darkMode, onTog
           {NavIcons.inventory}
           <span>Inventory</span>
         </button>
-        <button className={`bottom-nav-tab ${view === 'detect' ? 'active' : ''}`} onClick={() => handleNav('detect')}>
-          {NavIcons.scan}
-          <span>Scan</span>
-        </button>
         <button className={`bottom-nav-tab ${view === 'restock' ? 'active' : ''}`} onClick={() => handleNav('restock')}>
           {NavIcons.orders}
           <span>Orders</span>
           {restockList.length > 0 && <span className="bottom-nav-badge">{restockList.length}</span>}
         </button>
+        <button className={`bottom-nav-tab ${view === 'waste' ? 'active' : ''}`} onClick={() => handleNav('waste')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 16l4-6 4 4 5-8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <span>Reports</span>
+        </button>
         <button className={`bottom-nav-tab ${isMoreActive || showMore ? 'active' : ''}`} onClick={() => setShowMore(!showMore)}>
-          {NavIcons.more}
-          <span>More</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Settings</span>
         </button>
       </nav>
 
@@ -3837,16 +3827,19 @@ function AppContent() {
               <h1>Hello, {user?.name?.split(' ')[0] || 'there'}!</h1>
             </>
           ) : (
-            <h1>
-              {view === 'list' ? 'Inventory' :
-               view === 'restock' ? 'Restock & Orders' :
-               view === 'waste' ? 'Waste Tracking' :
-               view === 'suppliers' ? 'Suppliers' :
-               view === 'count' ? 'Quick Count' :
-               view === 'scan' ? 'Barcode Scan' :
-               view === 'detect' ? 'AI Scan' :
-               "Mike's Inventory"}
-            </h1>
+            <>
+              <h1>
+                {view === 'list' ? 'Inventory' :
+                 view === 'restock' ? 'Restock & Orders' :
+                 view === 'waste' ? 'Waste Tracking' :
+                 view === 'suppliers' ? 'Suppliers' :
+                 view === 'count' ? 'Quick Count' :
+                 view === 'scan' ? 'Barcode Scan' :
+                 view === 'detect' ? 'AI Scan' :
+                 "Mike's Inventory"}
+              </h1>
+              {view === 'list' && <div className="header-subtitle">Mike's Restaurant • Main Kitchen</div>}
+            </>
           )}
         </div>
         {user?.name && (

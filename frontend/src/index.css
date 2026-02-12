@@ -4415,6 +4415,12 @@ body {
 }
 
 .filter-pill.active {
+  background: #1e293b;
+  color: #ffffff;
+  border-color: #1e293b;
+}
+
+:root.dark .filter-pill.active {
   background: var(--primary);
   color: #0f172a;
   border-color: var(--primary);
@@ -4694,5 +4700,220 @@ body {
 
 :root.dark .verified-badge {
   background: rgba(5, 150, 105, 0.2);
+}
+
+/* ========================================
+   STITCH — INVENTORY ITEM ROWS
+   ======================================== */
+
+.stitch-item-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.1s ease;
+  min-height: 64px;
+}
+
+.stitch-item-row:first-child {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.stitch-item-row:last-child {
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  border-bottom: none;
+}
+
+.stitch-item-row:only-child {
+  border-radius: var(--radius-lg);
+}
+
+.stitch-item-row:active {
+  background: var(--gray-50);
+}
+
+.stitch-item-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--gray-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-color);
+}
+
+:root.dark .stitch-item-thumb {
+  background: var(--gray-200);
+}
+
+.stitch-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.stitch-item-name {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stitch-item-unit {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.stitch-item-qty {
+  text-align: right;
+  flex-shrink: 0;
+  min-width: 60px;
+}
+
+.stitch-qty-value {
+  display: block;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.stitch-qty-value.low {
+  color: var(--status-critical);
+}
+
+.stitch-qty-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.stitch-qty-label.low {
+  color: var(--status-critical);
+}
+
+/* Stitch Items List (grouped card) */
+.stitch-items-list {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-color);
+  margin-bottom: var(--space-2);
+}
+
+/* Stitch Category Header */
+.stitch-category-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) 0 var(--space-2);
+}
+
+.stitch-chevron {
+  font-size: 18px;
+  color: var(--text-muted);
+  font-weight: 600;
+  transition: transform 0.2s ease;
+}
+
+.stitch-category-name {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.stitch-category-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--gray-100);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.03em;
+}
+
+:root.dark .stitch-category-count {
+  background: var(--gray-200);
+}
+
+/* Stitch Search Bar */
+.stitch-search-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  position: relative;
+}
+
+.stitch-search-icon {
+  position: absolute;
+  left: 14px;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.stitch-search-input {
+  flex: 1;
+  padding: 12px 12px 12px 40px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-base);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  min-height: 48px;
+  transition: border-color 0.15s ease;
+}
+
+.stitch-search-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(19, 236, 91, 0.15);
+}
+
+.stitch-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.stitch-scan-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  border: none;
+  background: var(--primary);
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.1s ease;
+}
+
+.stitch-scan-btn:active {
+  transform: scale(0.95);
+}
+
+.stitch-scan-btn svg {
+  width: 22px;
+  height: 22px;
 }
 
