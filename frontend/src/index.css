@@ -345,6 +345,43 @@ body {
   line-height: 1;
 }
 
+/* Center Detect tab with green circle */
+.bottom-nav-tab.detect-tab {
+  margin-top: -12px;
+}
+
+.detect-tab-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(19, 236, 91, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.detect-tab-circle svg {
+  width: 24px;
+  height: 24px;
+  stroke: #0f172a;
+  stroke-width: 2;
+}
+
+.bottom-nav-tab.detect-tab.active .detect-tab-circle {
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(19, 236, 91, 0.5);
+}
+
+.bottom-nav-tab.detect-tab:active .detect-tab-circle {
+  transform: scale(0.95);
+}
+
+.bottom-nav-tab.detect-tab span {
+  margin-top: 2px;
+}
+
 .bottom-nav-badge {
   position: absolute;
   top: 6px;
