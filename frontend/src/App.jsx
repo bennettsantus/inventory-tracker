@@ -2647,13 +2647,27 @@ function SuppliersView({ showAlert }) {
 }
 
 // === Storage Location Config ===
-const STORAGE_LOCATIONS = [
+const DEFAULT_STORAGE_LOCATIONS = [
   { id: 'walk_in', label: 'Walk-in Cooler', iconKey: 'snowflake', color: '#16a34a' },
   { id: 'freezer', label: 'Freezer', iconKey: 'snowflake', color: '#2563eb' },
   { id: 'dry_storage', label: 'Dry Storage', iconKey: 'can', color: '#d97706' },
   { id: 'bar', label: 'Main Bar', iconKey: 'cup', color: '#16a34a' },
   { id: 'prep_area', label: 'Prep Area', iconKey: 'knife', color: '#ef4444' },
 ];
+
+const AVAILABLE_ICON_KEYS = ['snowflake', 'can', 'cup', 'knife', 'leaf', 'box', 'meat', 'fish', 'milk', 'broom', 'grid', 'cart', 'truck', 'clipboard'];
+const AVAILABLE_COLORS = ['#16a34a', '#2563eb', '#d97706', '#dc2626', '#0891b2', '#7c3aed', '#64748b'];
+
+function loadStorageLocations() {
+  try {
+    const saved = localStorage.getItem('customStorageLocations');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) { /* ignore */ }
+  return DEFAULT_STORAGE_LOCATIONS;
+}
 
 // === QuickCountView Component ===
 function QuickCountView({ items, onCountsSubmitted, showAlert }) {
@@ -2665,6 +2679,53 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
+  const [locations, setLocations] = useState(loadStorageLocations);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingLocId, setEditingLocId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editIconKey, setEditIconKey] = useState('box');
+  const [editColor, setEditColor] = useState('#64748b');
+
+  const saveLocations = (locs) => {
+    setLocations(locs);
+    localStorage.setItem('customStorageLocations', JSON.stringify(locs));
+  };
+
+  const openEditor = (loc) => {
+    setEditingLocId(loc.id);
+    setEditName(loc.label);
+    setEditIconKey(loc.iconKey);
+    setEditColor(loc.color);
+  };
+
+  const handleSaveEditor = () => {
+    if (!editName.trim()) return;
+    saveLocations(locations.map(l => l.id === editingLocId ? { ...l, label: editName.trim(), iconKey: editIconKey, color: editColor } : l));
+    setEditingLocId(null);
+  };
+
+  const handleAddLocation = () => {
+    const newLoc = { id: 'loc_' + Date.now(), label: 'New Location', iconKey: 'box', color: '#64748b' };
+    const updated = [...locations, newLoc];
+    saveLocations(updated);
+    openEditor(newLoc);
+  };
+
+  const handleDeleteLocation = (loc) => {
+    if (locations.length <= 1) { showAlert('error', 'Must have at least 1 location'); return; }
+    if (!window.confirm(`Delete "${loc.label}"?`)) return;
+    const updated = locations.filter(l => l.id !== loc.id);
+    saveLocations(updated);
+    if (editingLocId === loc.id) setEditingLocId(null);
+  };
+
+  const handleReorder = (index, direction) => {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= locations.length) return;
+    const updated = [...locations];
+    [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
+    saveLocations(updated);
+  };
 
   // Load items when location is selected
   useEffect(() => {
@@ -2761,8 +2822,8 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
           <div className="qc-success-icon">✓</div>
           <h2>{submitResult.count} Counts Recorded</h2>
           <p className="qc-success-location">
-            {(() => { const loc = STORAGE_LOCATIONS.find(l => l.id === selectedLocation); return loc ? SvgIcons[loc.iconKey]?.(loc.color) : null; })()}{' '}
-            {STORAGE_LOCATIONS.find(l => l.id === selectedLocation)?.label}
+            {(() => { const loc = locations.find(l => l.id === selectedLocation); return loc ? SvgIcons[loc.iconKey]?.(loc.color) : null; })()}{' '}
+            {locations.find(l => l.id === selectedLocation)?.label}
           </p>
 
           {withVariance.length > 0 && (
@@ -2793,32 +2854,89 @@ function QuickCountView({ items, onCountsSubmitted, showAlert }) {
   if (!selectedLocation) {
     return (
       <div className="quick-count">
-        <h2 className="qc-title">Quick Count</h2>
-        <p className="qc-subtitle">Select a storage location to start counting</p>
+        <div className="qc-header-row">
+          <h2 className="qc-title" style={{ margin: 0 }}>Quick Count</h2>
+          <button className={`qc-edit-toggle${isEditing ? ' active' : ''}`} onClick={() => { setIsEditing(!isEditing); setEditingLocId(null); }}>
+            {isEditing ? 'Done' : 'Edit'}
+          </button>
+        </div>
+        <p className="qc-subtitle">{isEditing ? 'Tap a location to edit, or add/remove locations' : 'Select a storage location to start counting'}</p>
         <div className="qc-location-grid">
-          {STORAGE_LOCATIONS.map(loc => {
+          {locations.map((loc, index) => {
             const locItemCount = items.filter(i => i.storage_location === loc.id && i.is_active !== false).length;
             return (
-              <button
-                key={loc.id}
-                className="qc-location-btn"
-                onClick={() => setSelectedLocation(loc.id)}
-              >
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: (loc.color || '#16a34a') + '18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {SvgIcons[loc.iconKey]?.(loc.color)}
-                </div>
-                <span className="qc-location-label">{loc.label}</span>
-                <span className="qc-location-count">{locItemCount} items</span>
-              </button>
+              <div key={loc.id} style={{ position: 'relative' }}>
+                {isEditing && (
+                  <button className="qc-delete-badge" onClick={(e) => { e.stopPropagation(); handleDeleteLocation(loc); }}>×</button>
+                )}
+                <button
+                  className="qc-location-btn"
+                  onClick={() => isEditing ? openEditor(loc) : setSelectedLocation(loc.id)}
+                >
+                  <div style={{ width: 48, height: 48, borderRadius: 12, background: (loc.color || '#16a34a') + '18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {SvgIcons[loc.iconKey]?.(loc.color)}
+                  </div>
+                  <span className="qc-location-label">{loc.label}</span>
+                  <span className="qc-location-count">{locItemCount} items</span>
+                </button>
+                {isEditing && (
+                  <div className="qc-reorder-btns">
+                    <button disabled={index === 0} onClick={() => handleReorder(index, -1)}>↑</button>
+                    <button disabled={index === locations.length - 1} onClick={() => handleReorder(index, 1)}>↓</button>
+                  </div>
+                )}
+              </div>
             );
           })}
+          {isEditing && (
+            <button className="qc-add-location-btn" onClick={handleAddLocation}>
+              <span style={{ fontSize: '2rem', lineHeight: 1 }}>+</span>
+              <span>Add Location</span>
+            </button>
+          )}
         </div>
+
+        {/* Inline editor */}
+        {isEditing && editingLocId && (() => {
+          const editLoc = locations.find(l => l.id === editingLocId);
+          if (!editLoc) return null;
+          return (
+            <div className="qc-location-editor">
+              <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem', color: 'var(--text-primary)' }}>Edit Location</h3>
+              <input
+                type="text"
+                className="qc-editor-name-input"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Location name"
+                autoFocus
+              />
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.75rem 0 0.35rem', display: 'block' }}>Icon</label>
+              <div className="qc-icon-picker">
+                {AVAILABLE_ICON_KEYS.map(key => (
+                  <button key={key} className={`qc-icon-option${editIconKey === key ? ' selected' : ''}`} onClick={() => setEditIconKey(key)}>
+                    {SvgIcons[key]?.(editIconKey === key ? editColor : '#64748b')}
+                  </button>
+                ))}
+              </div>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.75rem 0 0.35rem', display: 'block' }}>Color</label>
+              <div className="qc-color-picker">
+                {AVAILABLE_COLORS.map(c => (
+                  <button key={c} className={`qc-color-dot${editColor === c ? ' selected' : ''}`} style={{ background: c }} onClick={() => setEditColor(c)} />
+                ))}
+              </div>
+              <button className="btn btn-success" style={{ marginTop: '1rem', width: '100%', padding: '0.65rem', borderRadius: 10, fontWeight: 600 }} onClick={handleSaveEditor}>
+                Save
+              </button>
+            </div>
+          );
+        })()}
       </div>
     );
   }
 
   // --- Count entry screen ---
-  const currentLoc = STORAGE_LOCATIONS.find(l => l.id === selectedLocation);
+  const currentLoc = locations.find(l => l.id === selectedLocation);
 
   return (
     <div className="quick-count">
