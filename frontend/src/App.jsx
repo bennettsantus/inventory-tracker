@@ -2037,7 +2037,7 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
         )}
 
         {/* Green CTAs */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: 'var(--space-6)' }}>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="stitch-cta" style={{ marginBottom: 0, flex: 1 }} onClick={onStartCount}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             Count
@@ -2082,7 +2082,7 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
 
         {/* Low Stock Items - Action Required */}
         {lowStockItems.length > 0 && (
-          <div className="alert-section" style={{ marginTop: 'var(--space-6)' }}>
+          <div className="alert-section">
             <div className="section-header critical">
               <span>Action Required</span>
               <span className="section-count">{lowStockItems.length}</span>
