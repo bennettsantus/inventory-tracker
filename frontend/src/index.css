@@ -155,9 +155,12 @@ html {
   --gray-800: #f1f5f9;
   --gray-900: #f8fafc;
 
+  --bg-primary:  #0f172a;
   --bg-card:     #1e293b;
   --bg-elevated: #334155;
-  --bg-subtle:   #0f172a;
+  --bg-subtle:   #162032;
+  --border-color:  #334155;
+  --border-strong: #475569;
 
   --shadow-xs:   0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.03);
@@ -219,7 +222,7 @@ html {
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #f6f8f6;
+  background: var(--bg-primary);
   min-height: 100dvh;
   min-height: -webkit-fill-available;
   color: var(--text-primary);
@@ -260,7 +263,7 @@ body {
   background: var(--bg-card);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-radius: 0;
+  border-radius: var(--radius-lg);
 }
 
 .header h1 {
