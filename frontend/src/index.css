@@ -205,6 +205,17 @@ html {
 :root.dark .more-menu-sheet {
   background: var(--bg-elevated);
 }
+:root.dark .stat-card,
+:root.dark .stitch-items-list,
+:root.dark .inventory-item,
+:root.dark .stitch-value-card,
+:root.dark .stitch-activity-item {
+  border-color: var(--gray-200);
+}
+:root.dark .stitch-search-input {
+  background: var(--bg-card);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05);
+}
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -229,7 +240,7 @@ body {
    ======================================== */
 
 .app {
-  max-width: 600px;
+  max-width: 100%;
   margin: 0 auto;
   padding: var(--space-4) var(--space-4) 96px;
   overflow-x: hidden;
@@ -625,6 +636,7 @@ body {
   grid-template-columns: repeat(2, 1fr);
   gap: var(--space-md);
   margin-bottom: var(--space-xl);
+  width: 100%;
 }
 
 .stat-card {
@@ -4504,6 +4516,8 @@ body {
   color: var(--text-primary);
   letter-spacing: -0.02em;
   line-height: 1;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .stitch-value-card .value-label {
@@ -5229,5 +5243,52 @@ body {
 .stitch-scan-btn svg {
   width: 22px;
   height: 22px;
+}
+
+/* ========================================
+   DASHBOARD GRID
+   ======================================== */
+
+.dashboard-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ========================================
+   RESPONSIVE — Desktop (768px+)
+   ======================================== */
+
+@media (min-width: 768px) {
+  .app {
+    max-width: 1200px;
+    padding: var(--space-6) var(--space-8) var(--space-8);
+  }
+  .header {
+    padding: var(--space-6) var(--space-8) var(--space-4);
+  }
+  .bottom-nav {
+    max-width: 1200px;
+    margin: 0 auto;
+    border-radius: 16px 16px 0 0;
+  }
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-6);
+    align-items: start;
+  }
+  .category-sections {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+  .stitch-search-bar {
+    max-width: 500px;
+  }
+  .qc-location-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
 }
 

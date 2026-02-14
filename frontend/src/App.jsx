@@ -2010,126 +2010,132 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
   const activityItems = getActivityItems();
 
   return (
-    <div>
-      {/* Stock Value Card */}
-      <div className="stitch-value-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>Total Stock Value</span>
-          <span className="stitch-change-badge">↑ +2.4%</span>
-        </div>
-        <div className="value-amount">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        <div className="value-label">Calculated from {totalItems} active items</div>
-      </div>
-
-      {/* Low Stock Alert Card */}
-      {lowStockItems.length > 0 && (
-        <div className="stitch-alert-card" onClick={() => onNavigate?.('low')}>
-          <div className="alert-icon-circle">{SvgIcons.warning('#ffffff')}</div>
-          <div className="alert-text" style={{ flex: 1 }}>
-            <span style={{ fontSize: '12px', color: 'var(--status-critical)', fontWeight: 600, display: 'block', marginBottom: '2px' }}>Low Stock Alerts</span>
-            <strong>{lowStockItems.length} Items Low</strong>
-            <span>Requires immediate reorder</span>
+    <div className="dashboard-grid">
+      {/* Main column: value card, alert, CTAs */}
+      <div className="dashboard-main">
+        {/* Stock Value Card */}
+        <div className="stitch-value-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>Total Stock Value</span>
+            <span className="stitch-change-badge">↑ +2.4%</span>
           </div>
-          <span style={{ color: 'var(--status-critical)', fontSize: '18px' }}>›</span>
+          <div className="value-amount">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="value-label">Calculated from {totalItems} active items</div>
         </div>
-      )}
 
-      {/* Green CTAs */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: 'var(--space-6)' }}>
-        <button className="stitch-cta" style={{ marginBottom: 0, flex: 1 }} onClick={onStartCount}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-          Count
-        </button>
-        <button className="stitch-cta" style={{ marginBottom: 0, flex: 1 }} onClick={onStartScan}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          Scan
-        </button>
-      </div>
-
-      {/* Recent Activity Feed */}
-      {activityItems.length > 0 && (
-        <div>
-          <div className="stitch-activity-header">
-            <h3>Recent Activity</h3>
-            <button onClick={() => onNavigate?.('all')}>See All</button>
-          </div>
-          {activityItems.map(a => (
-            <div key={a.id} className="stitch-activity-item">
-              <div className={`stitch-activity-icon ${a.iconType}`}>{SvgIcons[a.iconKey]?.()}</div>
-              <div className="stitch-activity-info">
-                <div className="name">{a.name}</div>
-                <div className="desc">{a.desc}</div>
-              </div>
-              <div className="stitch-activity-time">{a.time}</div>
+        {/* Low Stock Alert Card */}
+        {lowStockItems.length > 0 && (
+          <div className="stitch-alert-card" onClick={() => onNavigate?.('low')}>
+            <div className="alert-icon-circle">{SvgIcons.warning('#ffffff')}</div>
+            <div className="alert-text" style={{ flex: 1 }}>
+              <span style={{ fontSize: '12px', color: 'var(--status-critical)', fontWeight: 600, display: 'block', marginBottom: '2px' }}>Low Stock Alerts</span>
+              <strong>{lowStockItems.length} Items Low</strong>
+              <span>Requires immediate reorder</span>
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Low Stock Items - Action Required */}
-      {lowStockItems.length > 0 && (
-        <div className="alert-section" style={{ marginTop: 'var(--space-6)' }}>
-          <div className="section-header critical">
-            <span>Action Required</span>
-            <span className="section-count">{lowStockItems.length}</span>
+            <span style={{ color: 'var(--status-critical)', fontSize: '18px' }}>›</span>
           </div>
-          <div className="alert-list">
-            {lowStockItems.slice(0, 5).map((item) => {
-              const percentage = getStockPercentage(item.current_quantity, item.min_quantity);
-              const needed = item.min_quantity - item.current_quantity;
-              const daysRemaining = item.usage?.daysRemaining;
-              const hasUsageData = item.usage?.hasData;
+        )}
 
-              let severityClass = 'warning';
-              if (daysRemaining !== null && daysRemaining !== undefined) {
-                if (daysRemaining <= 1) severityClass = 'critical';
-                else if (daysRemaining <= 3) severityClass = 'warning';
-              } else if (percentage <= 25) {
-                severityClass = 'critical';
-              }
+        {/* Green CTAs */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: 'var(--space-6)' }}>
+          <button className="stitch-cta" style={{ marginBottom: 0, flex: 1 }} onClick={onStartCount}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            Count
+          </button>
+          <button className="stitch-cta" style={{ marginBottom: 0, flex: 1 }} onClick={onStartScan}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Scan
+          </button>
+        </div>
 
-              let statusMessage;
-              if (daysRemaining !== null && daysRemaining !== undefined) {
-                if (daysRemaining === 0) statusMessage = 'Out today';
-                else if (daysRemaining === 1) statusMessage = 'Out tomorrow';
-                else statusMessage = `${daysRemaining} days left`;
-              } else if (hasUsageData === false) {
-                statusMessage = `Need ${needed} more`;
-              } else {
-                statusMessage = `Need ${needed} more ${item.unit_type}`;
-              }
+        {items.length === 0 && !loading && (
+          <div className="empty-state">
+            <div className="empty-state-icon">{SvgIcons.box('#94a3b8')}</div>
+            <p>Let's get started</p>
+            <p>Add items to start tracking your inventory</p>
+            <button className="btn btn-primary" onClick={() => onNavigate?.('detect')}>Scan Items</button>
+          </div>
+        )}
+      </div>
 
-              return (
-                <div key={item.id} className={`alert-card ${severityClass}`}>
-                  <div className="alert-card-content" onClick={() => onItemClick?.(item)}>
-                    <div className="alert-card-info">
-                      <div className="alert-card-name">{item.name}</div>
-                      <div className={`alert-card-status ${severityClass}`}>{statusMessage}</div>
-                    </div>
-                    <div className="alert-card-quantity">
-                      <span className="current">{item.current_quantity}</span>
-                      <span className="target">/ {item.min_quantity} {item.unit_type}</span>
-                    </div>
-                  </div>
-                  <div className="alert-card-actions">
-                    <button className="alert-btn primary" onClick={(e) => { e.stopPropagation(); onAddToRestock?.(item); }}>Add to Order</button>
-                    <button className="alert-btn secondary" onClick={(e) => { e.stopPropagation(); onEditThreshold?.(item); }}>Adjust</button>
-                  </div>
+      {/* Side column: activity feed, action required */}
+      <div className="dashboard-side">
+        {/* Recent Activity Feed */}
+        {activityItems.length > 0 && (
+          <div>
+            <div className="stitch-activity-header">
+              <h3>Recent Activity</h3>
+              <button onClick={() => onNavigate?.('all')}>See All</button>
+            </div>
+            {activityItems.map(a => (
+              <div key={a.id} className="stitch-activity-item">
+                <div className={`stitch-activity-icon ${a.iconType}`}>{SvgIcons[a.iconKey]?.()}</div>
+                <div className="stitch-activity-info">
+                  <div className="name">{a.name}</div>
+                  <div className="desc">{a.desc}</div>
                 </div>
-              );
-            })}
+                <div className="stitch-activity-time">{a.time}</div>
+              </div>
+            ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {items.length === 0 && !loading && (
-        <div className="empty-state">
-          <div className="empty-state-icon">{SvgIcons.box('#94a3b8')}</div>
-          <p>Let's get started</p>
-          <p>Add items to start tracking your inventory</p>
-          <button className="btn btn-primary" onClick={() => onNavigate?.('detect')}>Scan Items</button>
-        </div>
-      )}
+        {/* Low Stock Items - Action Required */}
+        {lowStockItems.length > 0 && (
+          <div className="alert-section" style={{ marginTop: 'var(--space-6)' }}>
+            <div className="section-header critical">
+              <span>Action Required</span>
+              <span className="section-count">{lowStockItems.length}</span>
+            </div>
+            <div className="alert-list">
+              {lowStockItems.slice(0, 5).map((item) => {
+                const percentage = getStockPercentage(item.current_quantity, item.min_quantity);
+                const needed = item.min_quantity - item.current_quantity;
+                const daysRemaining = item.usage?.daysRemaining;
+                const hasUsageData = item.usage?.hasData;
+
+                let severityClass = 'warning';
+                if (daysRemaining !== null && daysRemaining !== undefined) {
+                  if (daysRemaining <= 1) severityClass = 'critical';
+                  else if (daysRemaining <= 3) severityClass = 'warning';
+                } else if (percentage <= 25) {
+                  severityClass = 'critical';
+                }
+
+                let statusMessage;
+                if (daysRemaining !== null && daysRemaining !== undefined) {
+                  if (daysRemaining === 0) statusMessage = 'Out today';
+                  else if (daysRemaining === 1) statusMessage = 'Out tomorrow';
+                  else statusMessage = `${daysRemaining} days left`;
+                } else if (hasUsageData === false) {
+                  statusMessage = `Need ${needed} more`;
+                } else {
+                  statusMessage = `Need ${needed} more ${item.unit_type}`;
+                }
+
+                return (
+                  <div key={item.id} className={`alert-card ${severityClass}`}>
+                    <div className="alert-card-content" onClick={() => onItemClick?.(item)}>
+                      <div className="alert-card-info">
+                        <div className="alert-card-name">{item.name}</div>
+                        <div className={`alert-card-status ${severityClass}`}>{statusMessage}</div>
+                      </div>
+                      <div className="alert-card-quantity">
+                        <span className="current">{item.current_quantity}</span>
+                        <span className="target">/ {item.min_quantity} {item.unit_type}</span>
+                      </div>
+                    </div>
+                    <div className="alert-card-actions">
+                      <button className="alert-btn primary" onClick={(e) => { e.stopPropagation(); onAddToRestock?.(item); }}>Add to Order</button>
+                      <button className="alert-btn secondary" onClick={(e) => { e.stopPropagation(); onEditThreshold?.(item); }}>Adjust</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
