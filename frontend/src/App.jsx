@@ -1938,7 +1938,7 @@ function InventoryList({ items, onItemClick, onAddItem, loading, categories, rec
 }
 
 // Dashboard Component
-function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRestock, onStartCount, onStartScan, recentCounts, loading }) {
+function Dashboard({ items, onItemClick, onNavigate, onNavigateView, onEditThreshold, onAddToRestock, onStartCount, onStartScan, recentCounts, loading, restockCount }) {
   const totalItems = items.length;
 
   // Time-based greeting
@@ -2135,6 +2135,52 @@ function Dashboard({ items, onItemClick, onNavigate, onEditThreshold, onAddToRes
             </div>
           </div>
         )}
+      </div>
+
+      {/* Desktop Navigation Cards */}
+      <div className="desktop-nav-grid">
+        <div className="desktop-nav-card" onClick={() => onNavigateView?.('list')}>
+          <div className="desktop-nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0022 16z"/></svg>
+          </div>
+          <div className="desktop-nav-label">Inventory</div>
+          <div className="desktop-nav-stat">{items.length} items</div>
+        </div>
+        <div className="desktop-nav-card" onClick={onStartCount}>
+          <div className="desktop-nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
+          <div className="desktop-nav-label">Quick Count</div>
+          <div className="desktop-nav-stat">Start a count</div>
+        </div>
+        <div className="desktop-nav-card" onClick={onStartScan}>
+          <div className="desktop-nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </div>
+          <div className="desktop-nav-label">AI Scan</div>
+          <div className="desktop-nav-stat">Scan items</div>
+        </div>
+        <div className="desktop-nav-card" onClick={() => onNavigateView?.('restock')}>
+          <div className="desktop-nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+          </div>
+          <div className="desktop-nav-label">Restock & Orders</div>
+          <div className="desktop-nav-stat">{restockCount || 0} pending</div>
+        </div>
+        <div className="desktop-nav-card" onClick={() => onNavigateView?.('waste')}>
+          <div className="desktop-nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+          </div>
+          <div className="desktop-nav-label">Waste Tracker</div>
+          <div className="desktop-nav-stat">View reports</div>
+        </div>
+        <div className="desktop-nav-card" onClick={() => onNavigateView?.('suppliers')}>
+          <div className="desktop-nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+          <div className="desktop-nav-label">Suppliers</div>
+          <div className="desktop-nav-stat">Manage vendors</div>
+        </div>
       </div>
     </div>
   );
@@ -4114,26 +4160,22 @@ function AppContent() {
     <div className="app">
       <header className="header">
         <div onClick={() => setView('home')} style={{ cursor: 'pointer' }}>
-          {view === 'home' ? (
-            <>
-              <div className="header-subtitle">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-              <h1>Hello, {user?.name?.split(' ')[0] || 'there'}!</h1>
-            </>
-          ) : (
-            <>
-              <h1>
-                {view === 'list' ? 'Inventory' :
-                 view === 'restock' ? 'Restock & Orders' :
-                 view === 'waste' ? 'Waste Tracking' :
-                 view === 'suppliers' ? 'Suppliers' :
-                 view === 'count' ? 'Quick Count' :
-                 view === 'scan' ? 'Barcode Scan' :
-                 view === 'detect' ? 'AI Scan' :
-                 "Mike's Inventory"}
-              </h1>
-              {view === 'list' && <div className="header-subtitle">Mike's Restaurant • Main Kitchen</div>}
-            </>
-          )}
+          <div className="header-subtitle">
+            {view === 'home'
+              ? new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+              : "MIKE'S RESTAURANT \u2022 MAIN KITCHEN"}
+          </div>
+          <h1>
+            {view === 'home' ? `Hello, ${user?.name?.split(' ')[0] || 'there'}!` :
+             view === 'list' ? 'Inventory' :
+             view === 'restock' ? 'Restock & Orders' :
+             view === 'waste' ? 'Waste Tracking' :
+             view === 'suppliers' ? 'Suppliers' :
+             view === 'count' ? 'Quick Count' :
+             view === 'scan' ? 'Barcode Scan' :
+             view === 'detect' ? 'AI Scan' :
+             "Mike's Inventory"}
+          </h1>
         </div>
         {user?.name && (
           <div className="header-avatar" title={user.name}>
@@ -4264,11 +4306,13 @@ function AppContent() {
           loading={loading}
           onItemClick={handleItemClick}
           onNavigate={handleNavigateToInventory}
+          onNavigateView={(v) => setView(v)}
           onEditThreshold={handleEditThreshold}
           onAddToRestock={addToRestockList}
           onStartCount={() => setView('count')}
           onStartScan={() => setView('detect')}
           recentCounts={dashRecentCounts}
+          restockCount={restockList.length}
         />
       )}
 
