@@ -1302,6 +1302,15 @@ body {
   z-index: 1000;
   padding: var(--space-4);
   animation: fadeIn 150ms ease-out;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* Lock body scroll when modal is open */
+body.modal-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
 }
 
 .modal {

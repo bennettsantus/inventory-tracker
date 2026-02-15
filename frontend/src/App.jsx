@@ -1012,108 +1012,110 @@ function ThresholdEditModal({ item, onSave, onClose, allItems, onBulkSave, onBac
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
-        <div className="item-header-card">
-          <div className="item-icon">{getCategorySvgIcon(item?.category)}</div>
-          <div className="item-details">
-            <div className="item-title">{item?.name}</div>
-            <div className="item-subtitle">Current stock: {item?.current_quantity} {item?.unit_type}</div>
+        <div style={{ padding: 'var(--space-4) var(--space-5)' }}>
+          <div className="item-header-card">
+            <div className="item-icon">{getCategorySvgIcon(item?.category)}</div>
+            <div className="item-details">
+              <div className="item-title">{item?.name}</div>
+              <div className="item-subtitle">Current stock: {item?.current_quantity} {item?.unit_type}</div>
+            </div>
           </div>
-        </div>
 
-        <div className="form-group">
-          <label>Alert when stock falls below:</label>
-          <div className="threshold-slider-group">
-            <input
-              type="range"
-              min="0"
-              max="50"
-              value={threshold}
-              onChange={(e) => setThreshold(parseInt(e.target.value))}
-              className="threshold-slider"
-            />
-            <div className="threshold-value-display">
+          <div className="form-group">
+            <label>Alert when stock falls below:</label>
+            <div className="threshold-slider-group">
               <input
-                type="number"
-                value={threshold}
-                onChange={(e) => setThreshold(Math.max(0, parseInt(e.target.value) || 0))}
+                type="range"
                 min="0"
+                max="50"
+                value={threshold}
+                onChange={(e) => setThreshold(parseInt(e.target.value))}
+                className="threshold-slider"
               />
-              <span>{item?.unit_type}</span>
+              <div className="threshold-value-display">
+                <input
+                  type="number"
+                  value={threshold}
+                  onChange={(e) => setThreshold(Math.max(0, parseInt(e.target.value) || 0))}
+                  min="0"
+                />
+                <span>{item?.unit_type}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Status Preview */}
-        <div className={`threshold-status-preview ${newStatus}`}>
-          <div className="preview-header">
-            {threshold === 0 ? (
-              <>
-                <span className="preview-icon">{SvgIcons.bellOff('#94a3b8')}</span>
-                <span>Alerts disabled for this item</span>
-              </>
-            ) : item?.current_quantity <= threshold ? (
-              <>
-                <span className="preview-icon">{SvgIcons.warning('#dc2626')}</span>
-                <span>Will show alert immediately</span>
-              </>
-            ) : (
-              <>
-                <span className="preview-icon">{SvgIcons.check('#16a34a')}</span>
-                <span>Alert when below {threshold} {item?.unit_type}</span>
-              </>
-            )}
-          </div>
-          {threshold > 0 && (
-            <div className="preview-detail">
-              Current: {item?.current_quantity} / {threshold} ({getStockPercentage(item?.current_quantity, threshold)}%)
+          {/* Status Preview */}
+          <div className={`threshold-status-preview ${newStatus}`}>
+            <div className="preview-header">
+              {threshold === 0 ? (
+                <>
+                  <span className="preview-icon">{SvgIcons.bellOff('#94a3b8')}</span>
+                  <span>Alerts disabled for this item</span>
+                </>
+              ) : item?.current_quantity <= threshold ? (
+                <>
+                  <span className="preview-icon">{SvgIcons.warning('#dc2626')}</span>
+                  <span>Will show alert immediately</span>
+                </>
+              ) : (
+                <>
+                  <span className="preview-icon">{SvgIcons.check('#16a34a')}</span>
+                  <span>Alert when below {threshold} {item?.unit_type}</span>
+                </>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Bulk Edit Option */}
-        {similarItems.length > 0 && (
-          <div className="bulk-edit-section">
-            <div className="bulk-toggle" onClick={() => setBulkMode(!bulkMode)}>
-              <input type="checkbox" checked={bulkMode} readOnly />
-              <span>Apply to similar items in {item?.category}</span>
-            </div>
-
-            {bulkMode && (
-              <div className="bulk-items">
-                <button className="select-all-btn" onClick={selectAllSimilar}>
-                  Select all ({similarItems.length + 1})
-                </button>
-                <div className="bulk-item-list">
-                  <label className="bulk-item selected">
-                    <input type="checkbox" checked disabled />
-                    <span>{item?.name} (current)</span>
-                  </label>
-                  {similarItems.map(i => (
-                    <label key={i.id} className={`bulk-item ${selectedItems.includes(i.id) ? 'selected' : ''}`}>
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.includes(i.id)}
-                        onChange={() => toggleItem(i.id)}
-                      />
-                      <span>{i.name}</span>
-                      <span className="bulk-item-current">{i.current_quantity}/{i.min_quantity}</span>
-                    </label>
-                  ))}
-                </div>
+            {threshold > 0 && (
+              <div className="preview-detail">
+                Current: {item?.current_quantity} / {threshold} ({getStockPercentage(item?.current_quantity, threshold)}%)
               </div>
             )}
           </div>
-        )}
 
-        <div className="action-row">
-          <button className="btn btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn btn-success" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : bulkMode && selectedItems.length > 1
-              ? `Update ${selectedItems.length} Items`
-              : 'Save Threshold'}
-          </button>
+          {/* Bulk Edit Option */}
+          {similarItems.length > 0 && (
+            <div className="bulk-edit-section">
+              <div className="bulk-toggle" onClick={() => setBulkMode(!bulkMode)}>
+                <input type="checkbox" checked={bulkMode} readOnly />
+                <span>Apply to similar items in {item?.category}</span>
+              </div>
+
+              {bulkMode && (
+                <div className="bulk-items">
+                  <button className="select-all-btn" onClick={selectAllSimilar}>
+                    Select all ({similarItems.length + 1})
+                  </button>
+                  <div className="bulk-item-list">
+                    <label className="bulk-item selected">
+                      <input type="checkbox" checked disabled />
+                      <span>{item?.name} (current)</span>
+                    </label>
+                    {similarItems.map(i => (
+                      <label key={i.id} className={`bulk-item ${selectedItems.includes(i.id) ? 'selected' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(i.id)}
+                          onChange={() => toggleItem(i.id)}
+                        />
+                        <span>{i.name}</span>
+                        <span className="bulk-item-current">{i.current_quantity}/{i.min_quantity}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="action-row">
+            <button className="btn btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button className="btn btn-success" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving...' : bulkMode && selectedItems.length > 1
+                ? `Update ${selectedItems.length} Items`
+                : 'Save Threshold'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -3808,6 +3810,21 @@ function AppContent() {
   useEffect(() => {
     localStorage.setItem('restockList', JSON.stringify(restockList));
   }, [restockList]);
+
+  // Lock body scroll when any modal is open
+  useEffect(() => {
+    const anyModalOpen = showItemModal || showQuickUpdate || showThresholdModal || showWasteModal;
+    if (anyModalOpen) {
+      const scrollY = window.scrollY;
+      document.body.classList.add('modal-open');
+      document.body.style.top = `-${scrollY}px`;
+      return () => {
+        document.body.classList.remove('modal-open');
+        document.body.style.top = '';
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [showItemModal, showQuickUpdate, showThresholdModal, showWasteModal]);
 
   const addToRestockList = (item) => {
     setRestockList(prev => {
