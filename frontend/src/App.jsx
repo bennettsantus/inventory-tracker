@@ -1599,200 +1599,165 @@ function QuickUpdateModal({ item, onSave, onClose, onEdit, onEditThreshold, onUp
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
-        <div className="item-header-card">
-          <div className="item-icon">{getCategorySvgIcon(item.category)}</div>
-          <div className="item-details">
-            <div className="item-title">{item.name}</div>
-            <div className="item-subtitle">{item.category} • {item.barcode}</div>
-            <div className="item-timestamp">Last updated: {lastUpdated}</div>
-          </div>
-        </div>
-
-        {/* Uncategorized Warning & Quick Category Picker */}
-        {item.category === 'Uncategorized' && (
-          <div className="uncategorized-warning">
-            <div className="uncategorized-header">
-              <span>{SvgIcons.box('#64748b')}</span>
-              <span>This item needs a category</span>
+        <div style={{ padding: 'var(--space-4) var(--space-5)' }}>
+          {/* Compact item info */}
+          <div className="item-header-card">
+            <div className="item-icon">{getCategorySvgIcon(item.category)}</div>
+            <div className="item-details">
+              <div className="item-title">{item.name}</div>
+              <div className="item-subtitle">{item.category} • {item.current_quantity} {item.unit_type} in stock</div>
             </div>
-            {!showCategoryPicker ? (
-              <button className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem' }} onClick={() => setShowCategoryPicker(true)}>
-                + Assign Category
-              </button>
-            ) : (
-              <div className="category-picker">
-                {!showNewCategoryInput ? (
-                  <>
-                    <div className="category-grid">
-                      {allCategories.map(cat => (
-                        <button
-                          key={cat}
-                          className="category-option"
-                          onClick={() => onUpdateCategory?.(item.id, cat)}
-                        >
-                          <span className="category-option-icon">{SvgIcons[CATEGORY_ICON_MAP[cat] || 'box']?.(CATEGORY_COLORS[cat] || '#64748b')}</span>
-                          <span>{cat}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <button className="add-new-category-btn" onClick={() => setShowNewCategoryInput(true)}>
-                      + Create New Category
-                    </button>
-                  </>
-                ) : (
-                  <div className="new-category-input">
-                    <input
-                      type="text"
-                      placeholder="New category name..."
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value)}
-                      autoFocus
-                    />
-                    <div className="new-category-actions">
-                      <button className="btn btn-secondary" onClick={() => { setShowNewCategoryInput(false); setNewCategory(''); }}>Cancel</button>
-                      <button
-                        className="btn btn-success"
-                        disabled={!newCategory.trim()}
-                        onClick={() => {
-                          if (newCategory.trim()) {
-                            onUpdateCategory?.(item.id, newCategory.trim());
-                          }
-                        }}
-                      >
-                        Create & Assign
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
-        )}
 
-        {/* No Threshold Warning */}
-        {item.min_quantity === 0 && (
-          <div className="no-threshold-warning">
-            <div className="no-threshold-header">
-              <span>{SvgIcons.bell('#d97706')}</span>
-              <span>No low-stock alert set</span>
-            </div>
-            <button className="btn btn-secondary" style={{ width: '100%', marginTop: '0.5rem' }} onClick={() => onEditThreshold?.(item)}>
-              Set Alert Threshold
+          {/* Quantity Controls — primary action, right at top */}
+          <div className="mode-toggle">
+            <button
+              className={`mode-btn ${mode === 'add' ? 'active' : ''}`}
+              onClick={() => { setMode('add'); setAmount(0); }}
+            >
+              Add/Remove
+            </button>
+            <button
+              className={`mode-btn ${mode === 'set' ? 'active' : ''}`}
+              onClick={() => { setMode('set'); setAmount(item.current_quantity); }}
+            >
+              Set Quantity
             </button>
           </div>
-        )}
 
-        <div className={`stock-summary current ${stockStatus}`}>
-          <div className="stock-row">
-            <span>Current Stock:</span>
-            <span className="stock-value">{item.current_quantity} / {item.min_quantity} {item.unit_type}</span>
-          </div>
-          <div className="stock-progress-bar">
-            <div
-              className={`stock-progress-fill ${stockStatus}`}
-              style={{ width: `${Math.min(100, getStockPercentage(item.current_quantity, item.min_quantity))}%` }}
+          <div className="form-group" style={{ marginBottom: 'var(--space-3)' }}>
+            <label>{mode === 'add' ? 'Adjust by:' : 'Set to:'}</label>
+            <QuantityInput
+              value={amount}
+              onChange={setAmount}
+              unit={item.unit_type}
+              allowNegative={mode === 'add'}
             />
           </div>
-          <div className="stock-row" style={{ marginTop: '0.5rem' }}>
-            <span className="stock-percentage">
-              {item.min_quantity > 0 ? `${getStockPercentage(item.current_quantity, item.min_quantity)}% of target` : 'No threshold set'}
-            </span>
-            <button className="threshold-edit-btn" onClick={() => onEditThreshold?.(item)}>
-              {item.min_quantity > 0 ? <>{SvgIcons.bell('#d97706')} Alert</> : '+ Set Alert'}
+
+          {/* New Total Preview — inline */}
+          <div className="stock-summary preview compact" style={{ marginBottom: 'var(--space-3)' }}>
+            <div className="stock-row">
+              <span>New Total:</span>
+              <span className="stock-value">{newTotal} {item.unit_type}</span>
+            </div>
+            <div className="stock-change">
+              {difference > 0 && <span className="change-positive">+{difference}</span>}
+              {difference < 0 && <span className="change-negative">{difference}</span>}
+              {difference === 0 && <span className="change-neutral">No change</span>}
+            </div>
+            {newStockStatus === 'low' && newTotal > 0 && (
+              <div className="stock-warning">{SvgIcons.warning('#dc2626')} Will be below minimum</div>
+            )}
+          </div>
+
+          {/* Confirmation for large changes */}
+          {showConfirm && (
+            <div className="confirm-warning">
+              <strong>Large change detected!</strong>
+              <p>You're changing stock by {Math.abs(difference)} {item.unit_type}. Confirm?</p>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="action-row" style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)' }}>
+            <button className="btn btn-secondary" onClick={() => onEdit(item)}>
+              Edit Details
+            </button>
+            <button
+              className="btn btn-success"
+              onClick={handleSave}
+              disabled={saving || difference === 0}
+            >
+              {saving ? 'Saving...' : showConfirm ? 'Confirm Update' : 'Update Stock'}
             </button>
           </div>
-          {stockStatus === 'low' && (
-            <div className="stock-warning">{SvgIcons.warning('#dc2626')} {getStockSeverity(item.current_quantity, item.min_quantity)}% below target</div>
-          )}
-          {item.usage?.hasData && (
-            <div className="usage-info">
-              <span>Usage: ~{item.usage.averagePerDay} {item.unit_type}/day</span>
-              {item.usage.daysRemaining !== null && (
-                <span className={`days-remaining ${item.usage.daysRemaining <= 3 ? 'urgent' : ''}`}>
-                  {item.usage.daysRemaining === 0 ? 'Out today' :
-                   item.usage.daysRemaining === 1 ? 'Out tomorrow' :
-                   `${item.usage.daysRemaining} days remaining`}
-                </span>
+
+          {/* Secondary actions row */}
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
+            <button className="btn btn-danger-outline" style={{ flex: 1 }} onClick={() => onLogWaste?.(item)}>
+              Log Waste
+            </button>
+            {item.min_quantity === 0 && (
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => onEditThreshold?.(item)}>
+                Set Alert
+              </button>
+            )}
+          </div>
+
+          {/* Uncategorized Warning */}
+          {item.category === 'Uncategorized' && (
+            <div className="uncategorized-warning">
+              <div className="uncategorized-header">
+                <span>{SvgIcons.box('#64748b')}</span>
+                <span>This item needs a category</span>
+              </div>
+              {!showCategoryPicker ? (
+                <button className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem' }} onClick={() => setShowCategoryPicker(true)}>
+                  + Assign Category
+                </button>
+              ) : (
+                <div className="category-picker">
+                  {!showNewCategoryInput ? (
+                    <>
+                      <div className="category-grid">
+                        {allCategories.map(cat => (
+                          <button
+                            key={cat}
+                            className="category-option"
+                            onClick={() => onUpdateCategory?.(item.id, cat)}
+                          >
+                            <span className="category-option-icon">{SvgIcons[CATEGORY_ICON_MAP[cat] || 'box']?.(CATEGORY_COLORS[cat] || '#64748b')}</span>
+                            <span>{cat}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <button className="add-new-category-btn" onClick={() => setShowNewCategoryInput(true)}>
+                        + Create New Category
+                      </button>
+                    </>
+                  ) : (
+                    <div className="new-category-input">
+                      <input
+                        type="text"
+                        placeholder="New category name..."
+                        value={newCategory}
+                        onChange={(e) => setNewCategory(e.target.value)}
+                        autoFocus
+                      />
+                      <div className="new-category-actions">
+                        <button className="btn btn-secondary" onClick={() => { setShowNewCategoryInput(false); setNewCategory(''); }}>Cancel</button>
+                        <button
+                          className="btn btn-success"
+                          disabled={!newCategory.trim()}
+                          onClick={() => {
+                            if (newCategory.trim()) {
+                              onUpdateCategory?.(item.id, newCategory.trim());
+                            }
+                          }}
+                        >
+                          Create & Assign
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
+
+          {/* Usage Analytics — at the bottom, expandable */}
           <button
             className="view-analytics-btn"
             onClick={() => setShowUsageAnalytics(!showUsageAnalytics)}
+            style={{ marginTop: 'var(--space-3)' }}
           >
             {showUsageAnalytics ? 'Hide Analytics' : 'View Usage Analytics'}
           </button>
-        </div>
 
-        {/* Usage Analytics Panel */}
-        {showUsageAnalytics && (
-          <UsageAnalytics item={item} />
-        )}
-
-        {/* Mode Toggle */}
-        <div className="mode-toggle">
-          <button
-            className={`mode-btn ${mode === 'add' ? 'active' : ''}`}
-            onClick={() => { setMode('add'); setAmount(0); }}
-          >
-            Add/Remove
-          </button>
-          <button
-            className={`mode-btn ${mode === 'set' ? 'active' : ''}`}
-            onClick={() => { setMode('set'); setAmount(item.current_quantity); }}
-          >
-            Set Quantity
-          </button>
-        </div>
-
-        <div className="form-group">
-          <label>{mode === 'add' ? 'Adjust by:' : 'Set to:'}</label>
-          <QuantityInput
-            value={amount}
-            onChange={setAmount}
-            unit={item.unit_type}
-            allowNegative={mode === 'add'}
-          />
-        </div>
-
-        {/* New Total Preview */}
-        <div className={`stock-summary preview ${newStockStatus}`}>
-          <div className="stock-row">
-            <span>New Total:</span>
-            <span className="stock-value">{newTotal} {item.unit_type}</span>
-          </div>
-          <div className="stock-change">
-            {difference > 0 && <span className="change-positive">+{difference}</span>}
-            {difference < 0 && <span className="change-negative">{difference}</span>}
-            {difference === 0 && <span className="change-neutral">No change</span>}
-          </div>
-          {newStockStatus === 'low' && newTotal > 0 && (
-            <div className="stock-warning">{SvgIcons.warning('#dc2626')} Will be below minimum</div>
+          {showUsageAnalytics && (
+            <UsageAnalytics item={item} />
           )}
-        </div>
-
-        {/* Confirmation for large changes */}
-        {showConfirm && (
-          <div className="confirm-warning">
-            <strong>Large change detected!</strong>
-            <p>You're changing stock by {Math.abs(difference)} {item.unit_type}. Confirm?</p>
-          </div>
-        )}
-
-        <div className="action-row">
-          <button className="btn btn-secondary" onClick={() => onEdit(item)}>
-            Edit Details
-          </button>
-          <button className="btn btn-danger-outline" onClick={() => onLogWaste?.(item)}>
-            Log Waste
-          </button>
-          <button
-            className="btn btn-success"
-            onClick={handleSave}
-            disabled={saving || difference === 0}
-          >
-            {saving ? 'Saving...' : showConfirm ? 'Confirm Update' : 'Update Stock'}
-          </button>
         </div>
       </div>
     </div>
