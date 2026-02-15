@@ -1320,6 +1320,7 @@ body.modal-open {
   max-width: 420px;
   max-height: 85vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   animation: popIn 200ms ease-out;
@@ -5362,6 +5363,14 @@ body.modal-open {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
+  }
+  .modal-overlay {
+    padding: var(--space-8);
+  }
+  .modal {
+    max-width: 480px;
+    max-height: 80vh;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
   }
 }
 
